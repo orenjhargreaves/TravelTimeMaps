@@ -35,8 +35,8 @@ with st.sidebar:
     radius_km = st.slider(
         "Maximum Travel Distance (km)",
         1,
-        50,  # Increased from 20 to 50
-        5,
+        50,
+        15,  
         step=1,
         help="Maximum radius to analyze around the starting point"
     )
@@ -44,34 +44,27 @@ with st.sidebar:
     point_density = st.slider(
         "Point Density",
         16,
-        128,  # Increased from 64 to 128
-        32,
+        1024, 
+        128, 
         step=16,
         help="Number of points per circle (higher values give more detailed results)"
     )
 
     # Transportation mode mapping
     mode_mapping = {
+        "Cycling": "bicycling",  
         "Driving": "driving",
-        "Walking": "walking",
-        "Cycling": "bicycling"
+        "Walking": "walking"
     }
 
     # Transportation mode
     display_mode = st.selectbox(
         "Transportation Mode",
-        list(mode_mapping.keys()),  # Updated labels
-        index=0,
-        format_func=lambda x: x  # Ensures proper case display
+        list(mode_mapping.keys()),
+        index=0,  
+        format_func=lambda x: x
     )
-    mode = mode_mapping[display_mode]  # Convert display name to API mode
-
-    # Visualization mode toggle
-    show_raw_data = st.checkbox(
-        "Show Raw Data Points",
-        value=False,
-        help="Toggle between contour map and raw data points"
-    )
+    mode = mode_mapping[display_mode]
 
     # Calculate button
     calculate = st.button("Calculate Contours")
@@ -102,8 +95,8 @@ try:
             fig = visualizer.create_contour_map(
                 travel_times,
                 calculator.center_location,
-                60,  # Fixed maximum time display
-                show_raw_data=show_raw_data  # Pass visualization mode
+                60,  
+                show_raw_data=False  
             )
 
             # Display the map
@@ -114,13 +107,30 @@ try:
         fig = st.session_state.visualizer.create_contour_map(
             st.session_state.calculator.last_result,
             st.session_state.calculator.center_location,
-            60,  # Fixed maximum time display
-            show_raw_data=show_raw_data  # Pass visualization mode
+            60,  
+            show_raw_data=False  
         )
         st.plotly_chart(fig, use_container_width=True)
 
     else:
         st.info("Enter a location and click 'Calculate Contours' to begin")
+
+    # Visualization mode toggle (moved below the map)
+    show_raw_data = st.checkbox(
+        "Show Raw Data Points",
+        value=False,
+        help="Toggle between contour map and raw data points"
+    )
+
+    # Update visualization if toggle changes
+    if st.session_state.calculator and st.session_state.visualizer and show_raw_data is not None:
+        fig = st.session_state.visualizer.create_contour_map(
+            st.session_state.calculator.last_result,
+            st.session_state.calculator.center_location,
+            60,
+            show_raw_data=show_raw_data
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
 except Exception as e:
     st.error(f"An error occurred: {str(e)}")

@@ -5,6 +5,8 @@ from typing import Tuple, List, Dict
 import os
 import json
 import math
+import hashlib
+from functools import lru_cache
 
 class TravelTimeCalculator:
     def __init__(self, location: str, max_time: int, time_step: int, mode: str, radius_km: float = 5, point_density: int = 32):
@@ -22,6 +24,20 @@ class TravelTimeCalculator:
         self.point_density = point_density
         self.center_location = self._geocode_location()
         self.last_result = None
+        self._cache = {}
+
+    @lru_cache(maxsize=128)
+    def _get_cached_directions(self, origin_lat: float, origin_lng: float, dest_lat: float, dest_lng: float, mode: str) -> Dict:
+        """Cached wrapper for directions API calls."""
+        try:
+            return self.gmaps.directions(
+                (origin_lat, origin_lng),
+                (dest_lat, dest_lng),
+                mode=mode
+            )
+        except Exception as e:
+            print(f"Error getting directions: {str(e)}")
+            return None
 
     def _geocode_location(self) -> Tuple[float, float]:
         """Convert location string to coordinates."""
@@ -125,13 +141,14 @@ class TravelTimeCalculator:
         # Calculate travel times for each point
         for dest_lat, dest_lng in points:
             try:
-                print(f"Requesting directions to: ({dest_lat}, {dest_lng})")
-                directions = self.gmaps.directions(
-                    self.center_location,
-                    (dest_lat, dest_lng),
-                    mode=self.mode
+                # Use cached directions
+                directions = self._get_cached_directions(
+                    self.center_location[0],
+                    self.center_location[1],
+                    dest_lat,
+                    dest_lng,
+                    self.mode
                 )
-                print(f"Received directions response: {json.dumps(directions, indent=2)}")
 
                 if directions and directions[0].get('legs'):
                     # Extract duration in minutes
