@@ -1,7 +1,9 @@
 import plotly.graph_objects as go
+import plotly.figure_factory as ff
 import pandas as pd
 import numpy as np
 from typing import Tuple
+from scipy.interpolate import griddata
 
 class MapVisualizer:
     def __init__(self):
@@ -28,29 +30,60 @@ class MapVisualizer:
         if not all(col in data.columns for col in ['lat', 'lng', 'duration']):
             raise ValueError("Data must contain 'lat', 'lng', and 'duration' columns")
 
+        # Create interpolation grid
+        grid_size = 100
+        lat_range = np.linspace(data['lat'].min(), data['lat'].max(), grid_size)
+        lng_range = np.linspace(data['lng'].min(), data['lng'].max(), grid_size)
+        lat_grid, lng_grid = np.meshgrid(lat_range, lng_range)
+
+        # Interpolate duration values
+        duration_grid = griddata(
+            (data['lat'], data['lng']), 
+            data['duration'], 
+            (lat_grid, lng_grid), 
+            method='cubic'
+        )
+
         # Create base figure
         fig = go.Figure()
 
-        # Add contour scatter points
+        # Add contour layer
+        fig.add_trace(go.Contour(
+            z=duration_grid,
+            x=lng_range,  # Note: x corresponds to longitude
+            y=lat_range,  # y corresponds to latitude
+            colorscale=self.colorscale,
+            contours=dict(
+                start=0,
+                end=max_time,
+                size=5,  # Contour lines every 5 minutes
+                showlabels=True,
+                labelfont=dict(size=12, color='white')
+            ),
+            colorbar=dict(
+                title='Travel Time (minutes)',
+                thickness=15,
+                len=0.9,
+                tickfont=dict(size=12)
+            ),
+            hoverongaps=False,
+            showscale=True
+        ))
+
+        # Add data points (semi-transparent)
         fig.add_trace(go.Scattermapbox(
-            lat=data['lat'].values,  # Explicitly convert to numpy array
-            lon=data['lng'].values,  # Explicitly convert to numpy array
+            lat=data['lat'],
+            lon=data['lng'],
             mode='markers',
             marker=dict(
-                size=10,
-                color=data['duration'].values,  # Explicitly convert to numpy array
+                size=5,
+                color=data['duration'],
                 colorscale=self.colorscale,
-                showscale=True,
-                colorbar=dict(
-                    title='Travel Time (minutes)',
-                    thickness=15,
-                    len=0.9
-                ),
-                cmin=0,
-                cmax=max_time
+                opacity=0.3
             ),
             text=data['duration'].apply(lambda x: f'{x:.1f} minutes'),
-            hoverinfo='text'
+            hoverinfo='text',
+            showlegend=False
         ))
 
         # Add center point

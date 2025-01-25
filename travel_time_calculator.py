@@ -4,12 +4,11 @@ import pandas as pd
 from typing import Tuple, List, Dict
 import os
 import json
+import math
 
 class TravelTimeCalculator:
     def __init__(self, location: str, max_time: int, time_step: int, mode: str):
-        """
-        Initialize the calculator with location and parameters.
-        """
+        """Initialize the calculator with location and parameters."""
         api_key = os.environ.get('GOOGLE_MAPS_API_KEY')
         if not api_key:
             raise ValueError("Google Maps API key not found in environment variables")
@@ -72,18 +71,31 @@ class TravelTimeCalculator:
                 )
             raise
 
-    def _generate_grid_points(self, radius_km: float = 5) -> List[Tuple[float, float]]:
-        """Generate a grid of points around the center location."""
+    def _generate_radial_points(self, radius_km: float = 5) -> List[Tuple[float, float]]:
+        """Generate points in concentric circles around the center location."""
         lat, lng = self.center_location
-        points = []
+        points = [(lat, lng)]  # Include center point
 
-        # Convert radius to degrees (approximate)
-        radius_deg = radius_km / 111  # 1 degree ≈ 111 km
+        # Constants for coordinate conversion
+        km_per_lat = 111.0  # Approximate km per degree latitude
+        km_per_lng = 111.0 * math.cos(math.radians(lat))  # Adjust for latitude
 
-        # Create a grid of points
-        for i in np.linspace(-radius_deg, radius_deg, 20):
-            for j in np.linspace(-radius_deg, radius_deg, 20):
-                points.append((lat + i, lng + j))
+        # Generate concentric circles with increasing radius
+        num_circles = 8
+        points_per_circle = 32  # Must be divisible by 4 for even distribution
+
+        for radius_idx in range(num_circles):
+            radius = (radius_idx + 1) * (radius_km / num_circles)
+
+            # Generate points around the circle
+            for angle_idx in range(points_per_circle):
+                angle = (angle_idx * 2 * math.pi) / points_per_circle
+
+                # Convert polar coordinates to lat/lng
+                dlat = (radius * math.cos(angle)) / km_per_lat
+                dlng = (radius * math.sin(angle)) / km_per_lng
+
+                points.append((lat + dlat, lng + dlng))
 
         return points
 
@@ -95,12 +107,12 @@ class TravelTimeCalculator:
         # Verify API access before making multiple requests
         self._verify_api_access()
 
-        grid_points = self._generate_grid_points()
+        points = self._generate_radial_points()
         results = []
         error_count = 0
 
-        # Calculate travel times in batches
-        for dest_lat, dest_lng in grid_points:
+        # Calculate travel times for each point
+        for dest_lat, dest_lng in points:
             try:
                 print(f"Requesting directions to: ({dest_lat}, {dest_lng})")
                 directions = self.gmaps.directions(
@@ -137,7 +149,7 @@ class TravelTimeCalculator:
 
         # Create DataFrame with results
         if not results:
-            print(f"No successful results out of {len(grid_points)} attempts. Error count: {error_count}")
+            print(f"No successful results out of {len(points)} attempts. Error count: {error_count}")
             raise ValueError(
                 "No valid travel times could be calculated. This might be because:\n"
                 "1. The API key doesn't have access to the Directions API\n"
@@ -146,7 +158,7 @@ class TravelTimeCalculator:
                 "Please check your API key configuration and input parameters."
             )
 
-        print(f"Successfully calculated {len(results)} travel times out of {len(grid_points)} attempts")
+        print(f"Successfully calculated {len(results)} travel times out of {len(points)} attempts")
         df = pd.DataFrame(results)
         self.last_result = df
         return df
