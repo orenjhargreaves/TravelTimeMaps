@@ -16,25 +16,6 @@ class MapVisualizer:
             [1, 'rgb(255,0,0)']        # Red for longest times
         ]
 
-    def _get_color_for_value(self, value: float, max_value: float) -> str:
-        """Get color for a specific value using the colorscale."""
-        ratio = value / max_value
-        if ratio <= 0:
-            return 'rgb(0,255,0)'
-        elif ratio >= 1:
-            return 'rgb(255,0,0)'
-        else:
-            if ratio <= 0.5:
-                # Interpolate between green and yellow
-                g = 255
-                r = int(510 * ratio)  # 0->255 as ratio goes 0->0.5
-                return f'rgb({r},{g},0)'
-            else:
-                # Interpolate between yellow and red
-                r = 255
-                g = int(510 * (1 - ratio))  # 255->0 as ratio goes 0.5->1
-                return f'rgb({r},{g},0)'
-
     def create_contour_map(
         self,
         data: pd.DataFrame,
@@ -51,7 +32,7 @@ class MapVisualizer:
 
         fig = go.Figure()
 
-        # Create the contour fill
+        # Create interpolated grid for smooth contours
         grid_size = 100
         lat_min, lat_max = data['lat'].min(), data['lat'].max()
         lng_min, lng_max = data['lng'].min(), data['lng'].max()
@@ -67,6 +48,7 @@ class MapVisualizer:
         lng_grid = np.linspace(lng_min, lng_max, grid_size)
         lat_mesh, lng_mesh = np.meshgrid(lat_grid, lng_grid)
 
+        # Interpolate values
         grid_z = griddata(
             (data['lat'], data['lng']), 
             data['duration'],
@@ -75,20 +57,15 @@ class MapVisualizer:
             fill_value=max_time
         )
 
-        # Create contours with filled areas
-        fig.add_trace(go.Contourmapbox(
-            lat=lat_grid,
-            lon=lng_grid,
-            z=grid_z,
-            colorscale=self.colorscale,
+        # Add heatmap layer with very low opacity for the fill
+        fig.add_trace(go.Densitymapbox(
+            lat=data['lat'],
+            lon=data['lng'],
+            z=data['duration'],
+            radius=50,
             opacity=0.3,
+            colorscale=self.colorscale,
             showscale=True,
-            contours=dict(
-                start=0,
-                end=max_time,
-                size=5,
-                coloring='heatmap'
-            ),
             colorbar=dict(
                 title='Travel Time (minutes)',
                 thickness=15,
@@ -100,6 +77,29 @@ class MapVisualizer:
             ),
             hovertemplate='%{z:.1f} minutes<extra></extra>'
         ))
+
+        # Add contour lines
+        contour_levels = np.arange(0, max_time + 1, 5)
+        contours = plt.contour(lng_grid, lat_grid, grid_z, levels=contour_levels)
+        plt.close()
+
+        for i, segs in enumerate(contours.allsegs):
+            level = contours.levels[i]
+            level_color = self._get_color_for_value(level, max_time)
+
+            for segment in segs:
+                if len(segment) > 1:
+                    fig.add_trace(go.Scattermapbox(
+                        lon=segment[:, 0],
+                        lat=segment[:, 1],
+                        mode='lines',
+                        line=dict(
+                            width=2,
+                            color=level_color
+                        ),
+                        hovertemplate=f'{int(level)} minutes<extra></extra>',
+                        showlegend=False
+                    ))
 
         marker_size = 8 if show_raw_data else 4
         opacity = 1.0 if show_raw_data else 0.3
@@ -153,3 +153,22 @@ class MapVisualizer:
         )
 
         return fig
+
+    def _get_color_for_value(self, value: float, max_value: float) -> str:
+        """Get color for a specific value using the colorscale."""
+        ratio = value / max_value
+        if ratio <= 0:
+            return 'rgb(0,255,0)'
+        elif ratio >= 1:
+            return 'rgb(255,0,0)'
+        else:
+            if ratio <= 0.5:
+                # Interpolate between green and yellow
+                g = 255
+                r = int(510 * ratio)  # 0->255 as ratio goes 0->0.5
+                return f'rgb({r},{g},0)'
+            else:
+                # Interpolate between yellow and red
+                r = 255
+                g = int(510 * (1 - ratio))  # 255->0 as ratio goes 0.5->1
+                return f'rgb({r},{g},0)'

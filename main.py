@@ -72,9 +72,12 @@ with st.sidebar:
     # Calculate button
     calculate = st.button("Calculate Contours")
 
-# Create placeholder for map
+# Create placeholders for the interface elements
 map_placeholder = st.empty()
-progress_message = st.empty()  # Add this line to show progress updates
+progress_container = st.container()
+with progress_container:
+    progress_bar = st.progress(0)
+    progress_text = st.empty()
 
 # Create container for the toggle button
 toggle_container = st.container()
@@ -94,9 +97,16 @@ try:
             )
             visualizer = MapVisualizer()
 
-            # Add progress message update
+            # Add progress update function
             def update_progress(message):
-                progress_message.text(message)
+                # Extract progress percentage if available
+                if "%" in message:
+                    try:
+                        percentage = float(message.split("%")[0].split(" ")[-1])
+                        progress_bar.progress(percentage / 100)
+                    except:
+                        pass
+                progress_text.text(message)
 
             # Calculate travel times
             travel_times = calculator.calculate_travel_times(progress_callback=update_progress)
@@ -115,7 +125,9 @@ try:
 
             # Display the map in the placeholder
             map_placeholder.plotly_chart(fig, use_container_width=True, key="map_new")
-            progress_message.empty()  # Clear progress message after completion
+            # Clear progress indicators after completion
+            progress_text.empty()
+            progress_bar.empty()
 
     elif st.session_state.calculator and st.session_state.visualizer:
         # Update visualization with current toggle state
