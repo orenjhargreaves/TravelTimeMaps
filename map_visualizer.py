@@ -53,17 +53,6 @@ class MapVisualizer:
         values = data['duration'].values
         zi = griddata(points, values, (xi_mg, yi_mg), method='cubic')
 
-        # First add the map layer with high transparency
-        fig.update_layout(
-            mapbox=dict(
-                style='carto-positron',
-                center=dict(lat=center[0], lon=center[1]),
-                zoom=11,
-                opacity=0.3  # Make base map semi-transparent
-            ),
-            mapbox_style="carto-positron",
-        )
-
         # Add contours on top of the map
         fig.add_trace(go.Contour(
             z=zi,
@@ -130,6 +119,11 @@ class MapVisualizer:
 
         # Update layout with proper configuration
         fig.update_layout(
+            mapbox=dict(
+                style='carto-positron',
+                center=dict(lat=center[0], lon=center[1]),
+                zoom=11
+            ),
             dragmode='zoom',
             modebar=dict(
                 orientation='v',
@@ -146,22 +140,3 @@ class MapVisualizer:
         )
 
         return fig
-
-    def _get_color_for_value(self, value: float, max_value: float) -> str:
-        """Get color for a specific value using the colorscale."""
-        ratio = value / max_value
-        if ratio <= 0:
-            return 'rgb(0,255,0)'
-        elif ratio >= 1:
-            return 'rgb(255,0,0)'
-        else:
-            if ratio <= 0.5:
-                # Interpolate between green and yellow
-                g = 255
-                r = int(510 * ratio)  # 0->255 as ratio goes 0->0.5
-                return f'rgb({r},{g},0)'
-            else:
-                # Interpolate between yellow and red
-                r = 255
-                g = int(510 * (1 - ratio))  # 255->0 as ratio goes 0.5->1
-                return f'rgb({r},{g},0)'
