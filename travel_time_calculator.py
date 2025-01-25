@@ -82,20 +82,29 @@ class TravelTimeCalculator:
         km_per_lat = 111.0  # Approximate km per degree latitude
         km_per_lng = 111.0 * math.cos(math.radians(lat))  # Adjust for latitude
 
-        # Generate concentric circles with increasing radius
-        num_circles = 8
-        points_per_circle = self.point_density  # Use configured point density
+        # Scale number of circles and points based on density
+        base_circles = 4
+        base_points = 8
+        num_circles = base_circles + (self.point_density // 16)  # More circles for higher density
+        points_per_circle = base_points + (self.point_density // 4)  # More points per circle for higher density
 
-        for radius_idx in range(num_circles):
-            radius = (radius_idx + 1) * (self.radius_km / num_circles)
+        # Generate points with exponential radius distribution
+        for circle_idx in range(num_circles):
+            # Use exponential distribution for radius to get more detail near center
+            radius_factor = (circle_idx + 1) / num_circles
+            radius = self.radius_km * (1 - math.exp(-3 * radius_factor))
 
             # Generate points around the circle
-            for angle_idx in range(points_per_circle):
-                angle = (angle_idx * 2 * math.pi) / points_per_circle
+            for point_idx in range(points_per_circle):
+                angle = (point_idx * 2 * math.pi) / points_per_circle
+
+                # Add some randomness to avoid perfect circles
+                radius_jitter = radius * (1 + 0.1 * (np.random.random() - 0.5))
+                angle_jitter = angle + 0.1 * (np.random.random() - 0.5)
 
                 # Convert polar coordinates to lat/lng
-                dlat = (radius * math.cos(angle)) / km_per_lat
-                dlng = (radius * math.sin(angle)) / km_per_lng
+                dlat = (radius_jitter * math.cos(angle_jitter)) / km_per_lat
+                dlng = (radius_jitter * math.sin(angle_jitter)) / km_per_lng
 
                 points.append((lat + dlat, lng + dlng))
 

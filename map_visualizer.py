@@ -30,24 +30,10 @@ class MapVisualizer:
         if not all(col in data.columns for col in ['lat', 'lng', 'duration']):
             raise ValueError("Data must contain 'lat', 'lng', and 'duration' columns")
 
-        # Create interpolation grid
-        grid_size = 100
-        lat_range = np.linspace(data['lat'].min(), data['lat'].max(), grid_size)
-        lng_range = np.linspace(data['lng'].min(), data['lng'].max(), grid_size)
-        lat_grid, lng_grid = np.meshgrid(lat_range, lng_range)
-
-        # Interpolate duration values
-        duration_grid = griddata(
-            (data['lat'], data['lng']), 
-            data['duration'], 
-            (lat_grid, lng_grid), 
-            method='cubic'
-        )
-
         # Create base figure
         fig = go.Figure()
 
-        # Add data points (semi-transparent)
+        # Add base scatter points (small and semi-transparent)
         fig.add_trace(go.Scattermapbox(
             lat=data['lat'],
             lon=data['lng'],
@@ -76,23 +62,25 @@ class MapVisualizer:
             name='Starting Point'
         ))
 
-        # Create contour overlay using density_mapbox
-        fig.add_trace(go.Densitymapbox(
+        # Add contour overlay
+        fig.add_trace(go.Contourmapbox(
             lat=data['lat'],
             lon=data['lng'],
             z=data['duration'],
-            radius=20,
             colorscale=self.colorscale,
-            zmin=0,
-            zmax=max_time,
-            showscale=True,
+            contours=dict(
+                start=0,
+                end=max_time,
+                size=5,  # 5-minute intervals
+                showlabels=True,
+                labelfont=dict(size=12)
+            ),
             colorbar=dict(
                 title='Travel Time (minutes)',
                 thickness=15,
                 len=0.9,
                 tickfont=dict(size=12)
             ),
-            hovertemplate='Travel Time: %{z:.1f} minutes<extra></extra>',
             name='Travel Time Contours'
         ))
 
