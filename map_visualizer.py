@@ -27,10 +27,11 @@ class MapVisualizer:
         if not all(col in data.columns for col in ['lat', 'lng', 'duration']):
             raise ValueError("Data must contain 'lat', 'lng', and 'duration' columns")
 
+        # Create the base figure
         fig = go.Figure()
 
         # Create optimized grid for interpolation
-        grid_size = 50  # Reduced for better performance
+        grid_size = 40  # Further reduced for better performance
         lat_min, lat_max = data['lat'].min(), data['lat'].max()
         lng_min, lng_max = data['lng'].min(), data['lng'].max()
 
@@ -52,29 +53,17 @@ class MapVisualizer:
         values = data['duration'].values
         zi = griddata(points, values, (xi_mg, yi_mg), method='linear')
 
-        # Add contour fill
-        fig.add_trace(go.Contour(
-            x=xi,
-            y=yi,
-            z=zi,
+        # Add heatmap layer using densemap for better performance
+        fig.add_densemapbox(
+            lat=yi.flatten(),
+            lon=xi.flatten(),
+            z=zi.flatten(),
+            radius=25,
             colorscale=self.colorscale,
             opacity=0.6,
+            zmin=0,
+            zmax=max_time,
             showscale=True,
-            contours=dict(
-                start=0,
-                end=max_time,
-                size=5,
-                coloring='fill',
-                showlabels=True,
-                labelfont=dict(
-                    size=12,
-                    color='white'
-                )
-            ),
-            line=dict(
-                width=2,
-                color='rgba(0,0,0,0.5)'
-            ),
             colorbar=dict(
                 title='Travel Time (minutes)',
                 thickness=15,
@@ -85,11 +74,16 @@ class MapVisualizer:
                 ticktext=[f'{i}min' for i in range(0, max_time + 1, 5)]
             ),
             hovertemplate='%{z:.1f} minutes<extra></extra>'
-        ))
+        )
 
         # Add data points (optimized for performance)
         if show_raw_data:
-            fig.add_trace(go.Scattermapbox(
+            # Subsample points if there are too many
+            max_points = 200
+            if len(data) > max_points:
+                data = data.sample(n=max_points)
+
+            fig.add_scattermapbox(
                 lat=data['lat'],
                 lon=data['lng'],
                 mode='markers+text',
@@ -104,10 +98,10 @@ class MapVisualizer:
                 textposition="top center",
                 hovertemplate='<b>Travel Time:</b> %{text}<extra></extra>',
                 showlegend=False
-            ))
+            )
 
         # Add center point
-        fig.add_trace(go.Scattermapbox(
+        fig.add_scattermapbox(
             lat=[center[0]],
             lon=[center[1]],
             mode='markers',
@@ -118,23 +112,31 @@ class MapVisualizer:
             ),
             name='Starting Point',
             showlegend=False
-        ))
+        )
 
-        # Update layout
+        # Update layout with proper mapbox configuration
         fig.update_layout(
             mapbox=dict(
                 style='carto-positron',
                 center=dict(lat=center[0], lon=center[1]),
-                zoom=11
+                zoom=11,
+                layers=[],
             ),
+            mapbox_center=dict(lat=center[0], lon=center[1]),
+            mapbox_zoom=11,
             dragmode='zoom',
             modebar=dict(
                 orientation='v',
-                bgcolor='white'
+                bgcolor='white',
+                color='black',
+                activecolor='blue'
             ),
+            modebar_add=['zoom', 'pan', 'reset-view'],
             height=800,
             showlegend=False,
-            margin=dict(l=0, r=0, t=30, b=0)
+            margin=dict(l=0, r=0, t=30, b=0),
+            paper_bgcolor='white',
+            plot_bgcolor='white'
         )
 
         return fig
