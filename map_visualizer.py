@@ -53,48 +53,35 @@ class MapVisualizer:
         values = data['duration'].values
         zi = griddata(points, values, (xi_mg, yi_mg), method='cubic')
 
-        # Create heatmap using scattermapbox
-        heatmap_points = []
-        for i in range(grid_size):
-            for j in range(grid_size):
-                if not np.isnan(zi[i, j]):
-                    heatmap_points.append({
-                        'lat': yi[i],
-                        'lon': xi[j],
-                        'duration': zi[i, j]
-                    })
-
-        # Convert to DataFrame for easier handling
-        heatmap_df = pd.DataFrame(heatmap_points)
-
-        # Add heatmap layer
-        fig.add_scattermapbox(
-            lat=heatmap_df['lat'],
-            lon=heatmap_df['lon'],
-            mode='markers',
-            marker=dict(
-                size=8,  # Reduced size for better blending
-                color=heatmap_df['duration'],
-                colorscale=self.colorscale,
-                opacity=0.8,  # Increased opacity
-                showscale=True,
-                cmin=0,  # Set minimum value
-                cmax=max_time,  # Set maximum value
-                colorbar=dict(
-                    title='Travel Time (minutes)',
-                    thickness=15,
-                    len=0.9,
-                    tickfont=dict(size=12),
-                    tickmode='array',
-                    tickvals=list(range(0, max_time + 1, 5)),
-                    ticktext=[f'{i}min' for i in range(0, max_time + 1, 5)]
-                )
+        # Add contour map
+        fig.add_contourmapbox(
+            lon=xi,
+            lat=yi,
+            z=zi,
+            colorscale=self.colorscale,
+            opacity=0.6,
+            zmin=0,
+            zmax=max_time,
+            showscale=True,
+            contours=dict(
+                start=0,
+                end=max_time,
+                size=5,  # 5-minute intervals
+                coloring='fill'
             ),
-            hovertemplate='%{marker.color:.1f} minutes<extra></extra>',
-            showlegend=False
+            colorbar=dict(
+                title='Travel Time (minutes)',
+                thickness=15,
+                len=0.9,
+                tickfont=dict(size=12),
+                tickmode='array',
+                tickvals=list(range(0, max_time + 1, 5)),
+                ticktext=[f'{i}min' for i in range(0, max_time + 1, 5)]
+            ),
+            hovertemplate='%{z:.1f} minutes<extra></extra>'
         )
 
-        # Add data points (optimized for performance)
+        # Add data points if requested
         if show_raw_data:
             # Subsample points if there are too many
             max_points = 200
