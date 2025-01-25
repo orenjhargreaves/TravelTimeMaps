@@ -7,6 +7,9 @@ import json
 import math
 import hashlib
 from functools import lru_cache
+import threading
+from queue import Queue
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 class TravelTimeCalculator:
     def __init__(self, location: str, max_time: int, time_step: int, mode: str, radius_km: float = 5, point_density: int = 32):
@@ -24,17 +27,33 @@ class TravelTimeCalculator:
         self.point_density = point_density
         self.center_location = self._geocode_location()
         self.last_result = None
+        self._cache_lock = threading.Lock()
         self._cache = {}
 
-    @lru_cache(maxsize=128)
+    def _cache_key(self, origin_lat: float, origin_lng: float, dest_lat: float, dest_lng: float, mode: str) -> str:
+        """Generate a unique cache key for the request."""
+        key_parts = f"{origin_lat:.6f},{origin_lng:.6f}-{dest_lat:.6f},{dest_lng:.6f}-{mode}"
+        return hashlib.md5(key_parts.encode()).hexdigest()
+
     def _get_cached_directions(self, origin_lat: float, origin_lng: float, dest_lat: float, dest_lng: float, mode: str) -> Dict:
-        """Cached wrapper for directions API calls."""
+        """Thread-safe cached wrapper for directions API calls."""
+        cache_key = self._cache_key(origin_lat, origin_lng, dest_lat, dest_lng, mode)
+
+        with self._cache_lock:
+            if cache_key in self._cache:
+                return self._cache[cache_key]
+
         try:
-            return self.gmaps.directions(
+            result = self.gmaps.directions(
                 (origin_lat, origin_lng),
                 (dest_lat, dest_lng),
                 mode=mode
             )
+
+            with self._cache_lock:
+                self._cache[cache_key] = result
+
+            return result
         except Exception as e:
             print(f"Error getting directions: {str(e)}")
             return None
@@ -44,7 +63,6 @@ class TravelTimeCalculator:
         try:
             print(f"Geocoding location: {self.location}")
             geocode_result = self.gmaps.geocode(self.location)
-            print(f"Geocoding response: {json.dumps(geocode_result, indent=2)}")
 
             if not geocode_result:
                 raise ValueError(f"Location not found: {self.location}")
@@ -55,7 +73,6 @@ class TravelTimeCalculator:
             return (lat, lng)
         except Exception as e:
             if 'REQUEST_DENIED' in str(e):
-                print(f"Full error response: {str(e)}")
                 raise ValueError(
                     "Access to Google Maps API was denied. Please ensure you have:\n"
                     "1. Enabled the Geocoding API in your Google Cloud Console\n"
@@ -67,19 +84,18 @@ class TravelTimeCalculator:
     def _verify_api_access(self):
         """Verify API access with a test request"""
         try:
-            print(f"Verifying API access with mode: {self.mode}")
-            test_directions = self.gmaps.directions(
-                self.center_location,
-                self.center_location,  # Same point for test
-                mode=self.mode
+            test_directions = self._get_cached_directions(
+                self.center_location[0],
+                self.center_location[1],
+                self.center_location[0],
+                self.center_location[1],
+                self.mode
             )
-            print(f"Test directions response: {json.dumps(test_directions, indent=2)}")
 
             if not test_directions:
                 raise ValueError("Could not get directions data from Google Maps API")
             print("API access verification successful")
         except Exception as e:
-            print(f"API verification failed. Full error: {str(e)}")
             if 'REQUEST_DENIED' in str(e):
                 raise ValueError(
                     "Access to Google Maps API was denied. Please ensure you have:\n"
@@ -129,61 +145,55 @@ class TravelTimeCalculator:
 
         return points
 
+    def _process_point(self, point: Tuple[float, float]) -> Dict:
+        """Process a single point and return its travel time data."""
+        dest_lat, dest_lng = point
+        try:
+            directions = self._get_cached_directions(
+                self.center_location[0],
+                self.center_location[1],
+                dest_lat,
+                dest_lng,
+                self.mode
+            )
+
+            if directions and directions[0].get('legs'):
+                leg = directions[0]['legs'][0]
+                duration = leg['duration']['value'] / 60
+                actual_end_location = leg['end_location']
+
+                return {
+                    'lat': actual_end_location['lat'],
+                    'lng': actual_end_location['lng'],
+                    'duration': duration
+                }
+
+            return None
+        except Exception as e:
+            print(f"Error calculating travel time to ({dest_lat}, {dest_lng}). Full error: {str(e)}")
+            return None
+
     def calculate_travel_times(self) -> pd.DataFrame:
-        """Calculate travel times to grid points."""
+        """Calculate travel times to grid points using parallel processing."""
         if not self.center_location:
             raise ValueError("Center location not set. Please check the provided address.")
 
-        # Verify API access before making multiple requests
         self._verify_api_access()
-
         points = self._generate_radial_points()
         results = []
-        error_count = 0
 
-        # Calculate travel times for each point
-        for dest_lat, dest_lng in points:
-            try:
-                # Use cached directions
-                directions = self._get_cached_directions(
-                    self.center_location[0],
-                    self.center_location[1],
-                    dest_lat,
-                    dest_lng,
-                    self.mode
-                )
+        # Use ThreadPoolExecutor for parallel processing
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            # Submit all points for processing
+            future_to_point = {executor.submit(self._process_point, point): point for point in points}
 
-                if directions and directions[0].get('legs'):
-                    # Extract duration in minutes and actual end coordinates
-                    leg = directions[0]['legs'][0]
-                    duration = leg['duration']['value'] / 60
-                    actual_end_location = leg['end_location']
+            # Collect results as they complete
+            for future in as_completed(future_to_point):
+                result = future.result()
+                if result:
+                    results.append(result)
 
-                    results.append({
-                        'lat': actual_end_location['lat'],
-                        'lng': actual_end_location['lng'],
-                        'duration': duration
-                    })
-                    print(f"Successfully calculated duration: {duration} minutes")
-                else:
-                    print(f"No valid route found for destination: ({dest_lat}, {dest_lng})")
-                    error_count += 1
-
-            except Exception as e:
-                error_count += 1
-                print(f"Error calculating travel time to ({dest_lat}, {dest_lng}). Full error: {str(e)}")
-                if 'REQUEST_DENIED' in str(e):
-                    raise ValueError(
-                        "Access to Google Maps API was denied. Please ensure you have:\n"
-                        "1. Enabled the Directions API in your Google Cloud Console\n"
-                        "2. Properly configured your API key with access to these services\n"
-                        "3. Enabled billing for your Google Cloud project"
-                    )
-                continue
-
-        # Create DataFrame with results
         if not results:
-            print(f"No successful results out of {len(points)} attempts. Error count: {error_count}")
             raise ValueError(
                 "No valid travel times could be calculated. This might be because:\n"
                 "1. The API key doesn't have access to the Directions API\n"

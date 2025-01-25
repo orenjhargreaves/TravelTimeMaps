@@ -74,17 +74,6 @@ with st.sidebar:
 # Create placeholder for map
 map_placeholder = st.empty()
 
-# Toggle for raw data (placed below map placeholder)
-show_raw_data = st.checkbox(
-    "Show Raw Data Points",
-    value=st.session_state.show_raw_data,
-    help="Toggle between contour map and raw data points"
-)
-
-# Update session state if toggle changes
-if show_raw_data != st.session_state.show_raw_data:
-    st.session_state.show_raw_data = show_raw_data
-
 # Main content area
 try:
     if calculate:
@@ -112,7 +101,7 @@ try:
                 travel_times,
                 calculator.center_location,
                 60,
-                show_raw_data=show_raw_data
+                show_raw_data=st.session_state.show_raw_data
             )
 
             # Display the map in the placeholder
@@ -124,10 +113,21 @@ try:
             st.session_state.calculator.last_result,
             st.session_state.calculator.center_location,
             60,
-            show_raw_data=show_raw_data
+            show_raw_data=st.session_state.show_raw_data
         )
         # Display in placeholder with unique key
         map_placeholder.plotly_chart(fig, use_container_width=True, key="map_existing")
+
+        # Toggle for raw data (placed below map placeholder)
+        show_raw_data = st.checkbox(
+            "Show Raw Data Points",
+            value=st.session_state.show_raw_data,
+            help="Toggle between contour map and raw data points"
+        )
+
+        # Update session state if toggle changes
+        if show_raw_data != st.session_state.show_raw_data:
+            st.session_state.show_raw_data = show_raw_data
 
     else:
         # Show empty map container

@@ -189,7 +189,7 @@ class MapVisualizer:
                 style='carto-positron',
                 center=dict(lat=center[0], lon=center[1]),
                 zoom=11,
-                scrollzoom=True  # Enable scroll zooming (correct property name)
+                scrollwheel=True  # Correct property name for scroll zooming
             ),
             height=800,
             showlegend=False,
