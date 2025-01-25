@@ -62,26 +62,26 @@ class MapVisualizer:
             name='Starting Point'
         ))
 
-        # Add contour overlay
-        fig.add_trace(go.Contourmapbox(
+        # Add heatmap-style visualization
+        fig.add_trace(go.Densitymapbox(
             lat=data['lat'],
             lon=data['lng'],
             z=data['duration'],
+            radius=15,  # Smaller radius for better detail
             colorscale=self.colorscale,
-            contours=dict(
-                start=0,
-                end=max_time,
-                size=5,  # 5-minute intervals
-                showlabels=True,
-                labelfont=dict(size=12)
-            ),
+            opacity=0.8,
+            zmin=0,
+            zmax=max_time,
             colorbar=dict(
                 title='Travel Time (minutes)',
                 thickness=15,
                 len=0.9,
-                tickfont=dict(size=12)
+                tickfont=dict(size=12),
+                tickmode='array',
+                tickvals=list(range(0, max_time + 1, 5)),  # Show ticks every 5 minutes
+                ticktext=[f'{i}min' for i in range(0, max_time + 1, 5)]
             ),
-            name='Travel Time Contours'
+            name='Travel Time Zones'
         ))
 
         # Update layout with mapbox
