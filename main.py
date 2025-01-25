@@ -135,7 +135,7 @@ try:
             # Update session state if toggle changes
             if show_raw_data != st.session_state.show_raw_data:
                 st.session_state.show_raw_data = show_raw_data
-                st.experimental_rerun()  # Rerun to update the map
+                st.rerun()  # Use st.rerun() instead of st.experimental_rerun()
 
     else:
         # Show empty map container

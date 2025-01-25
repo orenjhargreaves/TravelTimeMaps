@@ -163,8 +163,16 @@ class TravelTimeCalculator:
         """Process a batch of points and return their travel time data."""
         results = []
 
-        # Process points in batches with progress bar
-        progress_bar = tqdm(range(0, len(points), batch_size), desc="Processing points", unit="batch")
+        # Process points in batches with enhanced progress bar
+        total_batches = (len(points) + batch_size - 1) // batch_size
+        progress_bar = tqdm(
+            range(0, len(points), batch_size),
+            desc="Calculating travel times",
+            total=total_batches,
+            unit="batch",
+            bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} batches "
+                      "[{elapsed}<{remaining}, {rate_fmt}{postfix}]"
+        )
 
         for i in progress_bar:
             batch = points[i:i + batch_size]
@@ -203,7 +211,11 @@ class TravelTimeCalculator:
                         print(f"Error calculating travel time to ({dest_lat}, {dest_lng}): {str(e)}")
 
             results.extend(batch_results)
-            progress_bar.set_postfix({"points_processed": len(results)})
+            # Update progress bar with detailed status
+            progress_bar.set_postfix({
+                "points_processed": len(results),
+                "success_rate": f"{(len(results) / (i + len(batch)) * 100):.1f}%"
+            })
 
         return results
 
