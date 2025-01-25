@@ -65,16 +65,16 @@ class MapVisualizer:
 
         # Create contour plot
         contours = plt.contour(lng_grid, lat_grid, grid_z, levels=contour_levels)
+        plt.close()  # Close the matplotlib figure
 
         # Extract and plot each contour level
-        for level, collection in zip(contours.levels, contours.collections):
-            # Get paths from the collection
-            for path in collection.get_paths():
-                vertices = path.vertices
-                if len(vertices) > 1:  # Only add if we have a valid line
+        for i, segs in enumerate(contours.allsegs):
+            level = contours.levels[i]
+            for segment in segs:
+                if len(segment) > 1:  # Only add if we have a valid line
                     fig.add_trace(go.Scattermapbox(
-                        lon=vertices[:, 0],
-                        lat=vertices[:, 1],
+                        lon=segment[:, 0],
+                        lat=segment[:, 1],
                         mode='lines',
                         line=dict(
                             width=2,
@@ -84,8 +84,6 @@ class MapVisualizer:
                         showlegend=True,
                         hovertemplate=f'{int(level)} minutes<extra></extra>'
                     ))
-
-        plt.close()  # Close the matplotlib figure
 
         # Add data points (small and semi-transparent)
         fig.add_trace(go.Scattermapbox(
