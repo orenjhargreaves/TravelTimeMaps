@@ -30,16 +30,68 @@ class MapVisualizer:
         if not all(col in data.columns for col in ['lat', 'lng', 'duration']):
             raise ValueError("Data must contain 'lat', 'lng', and 'duration' columns")
 
+        # Create a fine grid for interpolation
+        grid_size = 100
+        lat_min, lat_max = data['lat'].min(), data['lat'].max()
+        lng_min, lng_max = data['lng'].min(), data['lng'].max()
+
+        # Add padding to avoid edge effects
+        lat_pad = (lat_max - lat_min) * 0.1
+        lng_pad = (lng_max - lng_min) * 0.1
+        lat_min -= lat_pad
+        lat_max += lat_pad
+        lng_min -= lng_pad
+        lng_max += lng_pad
+
+        lat_grid = np.linspace(lat_min, lat_max, grid_size)
+        lng_grid = np.linspace(lng_min, lng_max, grid_size)
+        lat_mesh, lng_mesh = np.meshgrid(lat_grid, lng_grid)
+
+        # Interpolate the data
+        grid_z = griddata(
+            (data['lat'], data['lng']), 
+            data['duration'],
+            (lat_mesh, lng_mesh),
+            method='cubic',
+            fill_value=max_time
+        )
+
         # Create base figure
         fig = go.Figure()
 
-        # Add base scatter points (small and semi-transparent)
+        # Add contour lines using scattermapbox
+        contour_levels = np.arange(0, max_time + 1, 5)  # 5-minute intervals
+
+        for level in contour_levels:
+            # Find contour paths using matplotlib
+            import matplotlib.pyplot as plt
+            cs = plt.contour(lng_grid, lat_grid, grid_z, levels=[level])
+            plt.close()  # Close the matplotlib figure
+
+            # Convert contour paths to scattermapbox traces
+            for path in cs.collections[0].get_paths():
+                vertices = path.vertices
+                if len(vertices) > 1:  # Only add if we have a valid line
+                    fig.add_trace(go.Scattermapbox(
+                        lon=vertices[:, 0],
+                        lat=vertices[:, 1],
+                        mode='lines',
+                        line=dict(
+                            width=2,
+                            color=f'rgb({int(255*(1-level/max_time))},0,{int(255*level/max_time)})'
+                        ),
+                        name=f'{int(level)} min',
+                        showlegend=False,
+                        hovertemplate=f'{int(level)} minutes<extra></extra>'
+                    ))
+
+        # Add data points (small and semi-transparent)
         fig.add_trace(go.Scattermapbox(
             lat=data['lat'],
             lon=data['lng'],
             mode='markers',
             marker=dict(
-                size=5,
+                size=4,
                 color=data['duration'],
                 colorscale=self.colorscale,
                 opacity=0.3
@@ -62,26 +114,27 @@ class MapVisualizer:
             name='Starting Point'
         ))
 
-        # Add heatmap-style visualization
-        fig.add_trace(go.Densitymapbox(
-            lat=data['lat'],
-            lon=data['lng'],
-            z=data['duration'],
-            radius=15,  # Smaller radius for better detail
-            colorscale=self.colorscale,
-            opacity=0.8,
-            zmin=0,
-            zmax=max_time,
-            colorbar=dict(
-                title='Travel Time (minutes)',
-                thickness=15,
-                len=0.9,
-                tickfont=dict(size=12),
-                tickmode='array',
-                tickvals=list(range(0, max_time + 1, 5)),  # Show ticks every 5 minutes
-                ticktext=[f'{i}min' for i in range(0, max_time + 1, 5)]
+        # Create a colorbar trace
+        fig.add_trace(go.Scattermapbox(
+            lat=[None],
+            lon=[None],
+            mode='markers',
+            marker=dict(
+                colorscale=self.colorscale,
+                showscale=True,
+                cmin=0,
+                cmax=max_time,
+                colorbar=dict(
+                    title='Travel Time (minutes)',
+                    thickness=15,
+                    len=0.9,
+                    tickfont=dict(size=12),
+                    tickmode='array',
+                    tickvals=list(range(0, max_time + 1, 5)),
+                    ticktext=[f'{i}min' for i in range(0, max_time + 1, 5)]
+                )
             ),
-            name='Travel Time Zones'
+            showlegend=False
         ))
 
         # Update layout with mapbox
