@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 from typing import Tuple
 from scipy.interpolate import griddata
-import matplotlib.pyplot as plt
 from matplotlib.tri import Triangulation, LinearTriInterpolator
 
 class MapVisualizer:
@@ -92,27 +91,39 @@ class MapVisualizer:
             hovertemplate='%{z:.1f} minutes<extra></extra>'
         ))
 
-        # Add contour lines with better visibility
+        # Generate contour lines at specific intervals
         contour_levels = np.arange(0, max_time + 1, 5)
-        contours = plt.contour(xi_mg, yi_mg, zi, levels=contour_levels)
-        plt.close()
 
-        for collection, level in zip(contours.collections, contour_levels):
-            paths = collection.get_paths()
-            for path in paths:
-                vertices = path.vertices
-                if len(vertices) > 1:
-                    fig.add_trace(go.Scattermapbox(
-                        lon=vertices[:, 0],
-                        lat=vertices[:, 1],
-                        mode='lines',
-                        line=dict(
-                            width=2,
-                            color=self._get_color_for_value(level, max_time)
-                        ),
-                        hovertemplate=f'{int(level)} minutes<extra></extra>',
-                        showlegend=False
-                    ))
+        for level in contour_levels:
+            # Find contour lines for this level using numpy
+            contour_paths = []
+            for i in range(zi.shape[0] - 1):
+                for j in range(zi.shape[1] - 1):
+                    if not zi.mask[i, j]:
+                        # Check if we cross the contour level
+                        if (zi[i, j] <= level <= zi[i+1, j] or 
+                            zi[i+1, j] <= level <= zi[i, j] or
+                            zi[i, j] <= level <= zi[i, j+1] or
+                            zi[i, j+1] <= level <= zi[i, j]):
+
+                            contour_paths.append({
+                                'lon': [xi[j], xi[j+1]],
+                                'lat': [yi[i], yi[i+1]]
+                            })
+
+            # Add contour lines to the map
+            for path in contour_paths:
+                fig.add_trace(go.Scattermapbox(
+                    lon=path['lon'],
+                    lat=path['lat'],
+                    mode='lines',
+                    line=dict(
+                        width=2,
+                        color=self._get_color_for_value(level, max_time)
+                    ),
+                    hovertemplate=f'{int(level)} minutes<extra></extra>',
+                    showlegend=False
+                ))
 
         # Add data points with conditional visibility
         marker_size = 8 if show_raw_data else 4
