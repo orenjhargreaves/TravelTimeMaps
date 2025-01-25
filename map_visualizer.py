@@ -27,7 +27,7 @@ class MapVisualizer:
         if not all(col in data.columns for col in ['lat', 'lng', 'duration']):
             raise ValueError("Data must contain 'lat', 'lng', and 'duration' columns")
 
-        # Create the base figure with two subplots
+        # Create the base figure
         fig = go.Figure()
 
         # Create optimized grid for interpolation
@@ -53,7 +53,18 @@ class MapVisualizer:
         values = data['duration'].values
         zi = griddata(points, values, (xi_mg, yi_mg), method='cubic')
 
-        # Add contours as a separate trace
+        # First add the map layer with high transparency
+        fig.update_layout(
+            mapbox=dict(
+                style='carto-positron',
+                center=dict(lat=center[0], lon=center[1]),
+                zoom=11,
+                opacity=0.3  # Make base map semi-transparent
+            ),
+            mapbox_style="carto-positron",
+        )
+
+        # Add contours on top of the map
         fig.add_trace(go.Contour(
             z=zi,
             x=xi,
@@ -117,14 +128,8 @@ class MapVisualizer:
                 showlegend=False
             )
 
-        # Update layout with proper mapbox configuration
+        # Update layout with proper configuration
         fig.update_layout(
-            mapbox=dict(
-                style='carto-positron',
-                center=dict(lat=center[0], lon=center[1]),
-                zoom=11
-            ),
-            mapbox_style="carto-positron",
             dragmode='zoom',
             modebar=dict(
                 orientation='v',
