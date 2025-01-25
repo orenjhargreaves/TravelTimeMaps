@@ -53,22 +53,17 @@ class MapVisualizer:
         values = data['duration'].values
         zi = griddata(points, values, (xi_mg, yi_mg), method='cubic')
 
-        # Add contours on top of the map
-        fig.add_trace(go.Contour(
-            z=zi,
-            x=xi,
-            y=yi,
+        # Add heatmap layer using densitymapbox
+        fig.add_densitymapbox(
+            lat=data['lat'],
+            lon=data['lng'],
+            z=data['duration'],
+            radius=50,
             colorscale=self.colorscale,
-            opacity=0.7,
             zmin=0,
             zmax=max_time,
+            opacity=0.8,
             showscale=True,
-            contours=dict(
-                start=0,
-                end=max_time,
-                size=5,  # 5-minute intervals
-                coloring='fill'
-            ),
             colorbar=dict(
                 title='Travel Time (minutes)',
                 thickness=15,
@@ -79,7 +74,7 @@ class MapVisualizer:
                 ticktext=[f'{i}min' for i in range(0, max_time + 1, 5)]
             ),
             hovertemplate='%{z:.1f} minutes<extra></extra>'
-        ))
+        )
 
         # Add center point
         fig.add_scattermapbox(
