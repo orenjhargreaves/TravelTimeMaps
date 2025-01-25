@@ -16,6 +16,8 @@ if 'calculator' not in st.session_state:
     st.session_state.calculator = None
 if 'visualizer' not in st.session_state:
     st.session_state.visualizer = None
+if 'show_raw_data' not in st.session_state:
+    st.session_state.show_raw_data = False
 
 # Main title
 st.title("Travel Time Contour Map")
@@ -36,7 +38,7 @@ with st.sidebar:
         "Maximum Travel Distance (km)",
         1,
         50,
-        15,  
+        15,  # Default to 15km
         step=1,
         help="Maximum radius to analyze around the starting point"
     )
@@ -45,14 +47,14 @@ with st.sidebar:
         "Point Density",
         16,
         1024, 
-        128, 
+        128,  # Default to 128
         step=16,
         help="Number of points per circle (higher values give more detailed results)"
     )
 
     # Transportation mode mapping
     mode_mapping = {
-        "Cycling": "bicycling",  
+        "Cycling": "bicycling",  # Default mode first
         "Driving": "driving",
         "Walking": "walking"
     }
@@ -61,13 +63,27 @@ with st.sidebar:
     display_mode = st.selectbox(
         "Transportation Mode",
         list(mode_mapping.keys()),
-        index=0,  
+        index=0,  # Default to Cycling
         format_func=lambda x: x
     )
     mode = mode_mapping[display_mode]
 
     # Calculate button
     calculate = st.button("Calculate Contours")
+
+# Create placeholder for map
+map_placeholder = st.empty()
+
+# Toggle for raw data (placed below map placeholder)
+show_raw_data = st.checkbox(
+    "Show Raw Data Points",
+    value=st.session_state.show_raw_data,
+    help="Toggle between contour map and raw data points"
+)
+
+# Update session state if toggle changes
+if show_raw_data != st.session_state.show_raw_data:
+    st.session_state.show_raw_data = show_raw_data
 
 # Main content area
 try:
@@ -95,42 +111,28 @@ try:
             fig = visualizer.create_contour_map(
                 travel_times,
                 calculator.center_location,
-                60,  
-                show_raw_data=False  
+                60,
+                show_raw_data=show_raw_data
             )
 
-            # Display the map
-            st.plotly_chart(fig, use_container_width=True)
+            # Display the map in the placeholder
+            map_placeholder.plotly_chart(fig, use_container_width=True, key="map_new")
 
     elif st.session_state.calculator and st.session_state.visualizer:
-        # Display previously calculated map
-        fig = st.session_state.visualizer.create_contour_map(
-            st.session_state.calculator.last_result,
-            st.session_state.calculator.center_location,
-            60,  
-            show_raw_data=False  
-        )
-        st.plotly_chart(fig, use_container_width=True)
-
-    else:
-        st.info("Enter a location and click 'Calculate Contours' to begin")
-
-    # Visualization mode toggle (moved below the map)
-    show_raw_data = st.checkbox(
-        "Show Raw Data Points",
-        value=False,
-        help="Toggle between contour map and raw data points"
-    )
-
-    # Update visualization if toggle changes
-    if st.session_state.calculator and st.session_state.visualizer and show_raw_data is not None:
+        # Update visualization with current toggle state
         fig = st.session_state.visualizer.create_contour_map(
             st.session_state.calculator.last_result,
             st.session_state.calculator.center_location,
             60,
             show_raw_data=show_raw_data
         )
-        st.plotly_chart(fig, use_container_width=True)
+        # Display in placeholder with unique key
+        map_placeholder.plotly_chart(fig, use_container_width=True, key="map_existing")
+
+    else:
+        # Show empty map container
+        map_placeholder.empty()
+        st.info("Enter a location and click 'Calculate Contours' to begin")
 
 except Exception as e:
     st.error(f"An error occurred: {str(e)}")

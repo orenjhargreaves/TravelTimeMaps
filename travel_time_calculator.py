@@ -110,9 +110,12 @@ class TravelTimeCalculator:
             radius_factor = (circle_idx + 1) / num_circles
             radius = self.radius_km * (1 - math.exp(-3 * radius_factor))
 
+            # Increase point density for inner circles
+            current_points = int(points_per_circle * (1 + (1 - radius_factor) * 2))
+
             # Generate points around the circle
-            for point_idx in range(points_per_circle):
-                angle = (point_idx * 2 * math.pi) / points_per_circle
+            for point_idx in range(current_points):
+                angle = (point_idx * 2 * math.pi) / current_points
 
                 # Add some randomness to avoid perfect circles
                 radius_jitter = radius * (1 + 0.1 * (np.random.random() - 0.5))
