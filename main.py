@@ -66,6 +66,13 @@ with st.sidebar:
     )
     mode = mode_mapping[display_mode]  # Convert display name to API mode
 
+    # Visualization mode toggle
+    show_raw_data = st.checkbox(
+        "Show Raw Data Points",
+        value=False,
+        help="Toggle between contour map and raw data points"
+    )
+
     # Calculate button
     calculate = st.button("Calculate Contours")
 
@@ -95,7 +102,8 @@ try:
             fig = visualizer.create_contour_map(
                 travel_times,
                 calculator.center_location,
-                60  # Fixed maximum time display
+                60,  # Fixed maximum time display
+                show_raw_data=show_raw_data  # Pass visualization mode
             )
 
             # Display the map
@@ -106,7 +114,8 @@ try:
         fig = st.session_state.visualizer.create_contour_map(
             st.session_state.calculator.last_result,
             st.session_state.calculator.center_location,
-            60  # Fixed maximum time display
+            60,  # Fixed maximum time display
+            show_raw_data=show_raw_data  # Pass visualization mode
         )
         st.plotly_chart(fig, use_container_width=True)
 

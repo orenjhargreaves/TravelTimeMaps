@@ -39,10 +39,11 @@ class MapVisualizer:
         self,
         data: pd.DataFrame,
         center: Tuple[float, float],
-        max_time: int
+        max_time: int,
+        show_raw_data: bool = False
     ) -> go.Figure:
         """
-        Create a contour map visualization using Plotly.
+        Create a visualization using Plotly.
         """
         # Validate input data
         if data is None or data.empty:
@@ -51,106 +52,119 @@ class MapVisualizer:
         if not all(col in data.columns for col in ['lat', 'lng', 'duration']):
             raise ValueError("Data must contain 'lat', 'lng', and 'duration' columns")
 
-        # Create a fine grid for interpolation
-        grid_size = 100
-        lat_min, lat_max = data['lat'].min(), data['lat'].max()
-        lng_min, lng_max = data['lng'].min(), data['lng'].max()
-
-        # Add padding to avoid edge effects
-        lat_pad = (lat_max - lat_min) * 0.1
-        lng_pad = (lng_max - lng_min) * 0.1
-        lat_min -= lat_pad
-        lat_max += lat_pad
-        lng_min -= lng_pad
-        lng_max += lng_pad
-
-        lat_grid = np.linspace(lat_min, lat_max, grid_size)
-        lng_grid = np.linspace(lng_min, lng_max, grid_size)
-        lat_mesh, lng_mesh = np.meshgrid(lat_grid, lng_grid)
-
-        # Interpolate the data using linear interpolation to prevent unrealistic islands
-        grid_z = griddata(
-            (data['lat'], data['lng']), 
-            data['duration'],
-            (lat_mesh, lng_mesh),
-            method='linear',  # Changed from cubic to linear
-            fill_value=max_time
-        )
-
         # Create base figure
         fig = go.Figure()
 
-        # Add contour lines using scattermapbox
-        contour_levels = np.arange(0, max_time + 1, 5)  # 5-minute intervals
+        if not show_raw_data:
+            # Create a fine grid for interpolation
+            grid_size = 100
+            lat_min, lat_max = data['lat'].min(), data['lat'].max()
+            lng_min, lng_max = data['lng'].min(), data['lng'].max()
 
-        # Create contour plot
-        contours = plt.contour(lng_grid, lat_grid, grid_z, levels=contour_levels)
-        plt.close()  # Close the matplotlib figure
+            # Add padding to avoid edge effects
+            lat_pad = (lat_max - lat_min) * 0.1
+            lng_pad = (lng_max - lng_min) * 0.1
+            lat_min -= lat_pad
+            lat_max += lat_pad
+            lng_min -= lng_pad
+            lng_max += lng_pad
 
-        # Extract and plot each contour level
-        for i, segs in enumerate(contours.allsegs):
-            level = contours.levels[i]
-            level_color = self._get_color_for_value(level, max_time)
+            lat_grid = np.linspace(lat_min, lat_max, grid_size)
+            lng_grid = np.linspace(lng_min, lng_max, grid_size)
+            lat_mesh, lng_mesh = np.meshgrid(lat_grid, lng_grid)
 
-            for segment in segs:
-                if len(segment) > 1:  # Only add if we have a valid line
-                    # Add contour line
-                    fig.add_trace(go.Scattermapbox(
-                        lon=segment[:, 0],
-                        lat=segment[:, 1],
-                        mode='lines',
-                        line=dict(
-                            width=2,
-                            color=level_color
-                        ),
-                        hovertemplate=f'{int(level)} minutes<extra></extra>',
-                        showlegend=False
-                    ))
+            # Interpolate the data using linear interpolation to prevent unrealistic islands
+            grid_z = griddata(
+                (data['lat'], data['lng']), 
+                data['duration'],
+                (lat_mesh, lng_mesh),
+                method='linear',  # Changed from cubic to linear
+                fill_value=max_time
+            )
 
-                    # Add text labels along the contour (visible when zoomed)
-                    # Place labels at regular intervals along the contour
-                    num_labels = max(1, len(segment) // 50)  # Adjust density of labels
-                    label_indices = np.linspace(0, len(segment)-1, num_labels, dtype=int)
+            # Create contour plot using matplotlib
+            contour_levels = np.arange(0, max_time + 1, 5)  # 5-minute intervals
+            contours = plt.contour(lng_grid, lat_grid, grid_z, levels=contour_levels)
+            plt.close()  # Close the matplotlib figure
 
-                    for idx in label_indices:
-                        # Calculate label offset perpendicular to the contour
-                        if idx > 0:  # Skip first point if we can't calculate direction
-                            # Calculate direction vector of the contour
-                            dx = segment[idx, 0] - segment[idx-1, 0]
-                            dy = segment[idx, 1] - segment[idx-1, 1]
-                            # Normalize and rotate 90 degrees for perpendicular offset
-                            length = math.sqrt(dx*dx + dy*dy)
-                            if length > 0:
-                                # Offset by 0.0003 degrees (roughly 30 meters)
-                                offset_x = -dy/length * 0.0003
-                                offset_y = dx/length * 0.0003
+            # Extract and plot each contour level
+            for i, segs in enumerate(contours.allsegs):
+                level = contours.levels[i]
+                level_color = self._get_color_for_value(level, max_time)
 
-                                fig.add_trace(go.Scattermapbox(
-                                    lon=[segment[idx, 0] + offset_x],
-                                    lat=[segment[idx, 1] + offset_y],
-                                    mode='text',
-                                    text=[f'{int(level)}min'],
-                                    textfont=dict(
-                                        size=12,
-                                        color=level_color
-                                    ),
-                                    showlegend=False,
-                                    hoverinfo='none'
-                                ))
+                for segment in segs:
+                    if len(segment) > 1:  # Only add if we have a valid line
+                        # Add contour line
+                        fig.add_trace(go.Scattermapbox(
+                            lon=segment[:, 0],
+                            lat=segment[:, 1],
+                            mode='lines',
+                            line=dict(
+                                width=2,
+                                color=level_color
+                            ),
+                            hovertemplate=f'{int(level)} minutes<extra></extra>',
+                            showlegend=False
+                        ))
 
-        # Add data points (small and semi-transparent)
+                        # Add text labels along the contour (visible when zoomed)
+                        # Place labels at regular intervals along the contour
+                        num_labels = max(1, len(segment) // 50)  # Adjust density of labels
+                        label_indices = np.linspace(0, len(segment)-1, num_labels, dtype=int)
+
+                        for idx in label_indices:
+                            # Calculate label offset perpendicular to the contour
+                            if idx > 0:  # Skip first point if we can't calculate direction
+                                # Calculate direction vector of the contour
+                                dx = segment[idx, 0] - segment[idx-1, 0]
+                                dy = segment[idx, 1] - segment[idx-1, 1]
+                                # Normalize and rotate 90 degrees for perpendicular offset
+                                length = math.sqrt(dx*dx + dy*dy)
+                                if length > 0:
+                                    # Offset by 0.0003 degrees (roughly 30 meters)
+                                    offset_x = -dy/length * 0.0003
+                                    offset_y = dx/length * 0.0003
+
+                                    fig.add_trace(go.Scattermapbox(
+                                        lon=[segment[idx, 0] + offset_x],
+                                        lat=[segment[idx, 1] + offset_y],
+                                        mode='text',
+                                        text=[f'{int(level)}min'],
+                                        textfont=dict(
+                                            size=12,
+                                            color=level_color
+                                        ),
+                                        showlegend=False,
+                                        hoverinfo='none'
+                                    ))
+
+        # Add data points with enhanced visibility when show_raw_data is True
+        marker_size = 8 if show_raw_data else 4
+        opacity = 1.0 if show_raw_data else 0.3
+
         fig.add_trace(go.Scattermapbox(
             lat=data['lat'],
             lon=data['lng'],
-            mode='markers',
+            mode='markers+text' if show_raw_data else 'markers',
             marker=dict(
-                size=4,
+                size=marker_size,
                 color=data['duration'],
                 colorscale=self.colorscale,
-                opacity=0.3
+                opacity=opacity,
+                showscale=True,
+                colorbar=dict(
+                    title='Travel Time (minutes)',
+                    thickness=15,
+                    len=0.9,
+                    tickfont=dict(size=12),
+                    tickmode='array',
+                    tickvals=list(range(0, max_time + 1, 5)),
+                    ticktext=[f'{i}min' for i in range(0, max_time + 1, 5)]
+                )
             ),
-            text=data['duration'].apply(lambda x: f'{x:.1f} minutes'),
-            hoverinfo='text',
+            text=data['duration'].apply(lambda x: f'{x:.1f}min') if show_raw_data else None,
+            textposition="top center" if show_raw_data else None,
+            hovertemplate='<b>Travel Time:</b> %{text}<extra></extra>' if show_raw_data else None,
             showlegend=False
         ))
 
@@ -165,29 +179,6 @@ class MapVisualizer:
                 symbol='star'
             ),
             name='Starting Point',
-            showlegend=False
-        ))
-
-        # Create a colorbar trace
-        fig.add_trace(go.Scattermapbox(
-            lat=[None],
-            lon=[None],
-            mode='markers',
-            marker=dict(
-                colorscale=self.colorscale,
-                showscale=True,
-                cmin=0,
-                cmax=max_time,
-                colorbar=dict(
-                    title='Travel Time (minutes)',
-                    thickness=15,
-                    len=0.9,
-                    tickfont=dict(size=12),
-                    tickmode='array',
-                    tickvals=list(range(0, max_time + 1, 5)),
-                    ticktext=[f'{i}min' for i in range(0, max_time + 1, 5)]
-                )
-            ),
             showlegend=False
         ))
 
