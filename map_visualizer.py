@@ -15,6 +15,25 @@ class MapVisualizer:
             [1, 'rgb(255,0,0)']        # Red for longest times
         ]
 
+    def _get_color_for_value(self, value: float, max_value: float) -> str:
+        """Get color for a specific value using the colorscale."""
+        ratio = value / max_value
+        if ratio <= 0:
+            return 'rgb(0,255,0)'
+        elif ratio >= 1:
+            return 'rgb(255,0,0)'
+        else:
+            if ratio <= 0.5:
+                # Interpolate between green and yellow
+                g = 255
+                r = int(510 * ratio)  # 0->255 as ratio goes 0->0.5
+                return f'rgb({r},{g},0)'
+            else:
+                # Interpolate between yellow and red
+                r = 255
+                g = int(510 * (1 - ratio))  # 255->0 as ratio goes 0.5->1
+                return f'rgb({r},{g},0)'
+
     def create_contour_map(
         self,
         data: pd.DataFrame,
@@ -70,20 +89,38 @@ class MapVisualizer:
         # Extract and plot each contour level
         for i, segs in enumerate(contours.allsegs):
             level = contours.levels[i]
+            level_color = self._get_color_for_value(level, max_time)
+
             for segment in segs:
                 if len(segment) > 1:  # Only add if we have a valid line
+                    # Add contour line
                     fig.add_trace(go.Scattermapbox(
                         lon=segment[:, 0],
                         lat=segment[:, 1],
                         mode='lines',
                         line=dict(
                             width=2,
-                            color=f'rgb({int(255*(1-level/max_time))},0,{int(255*level/max_time)})'
+                            color=level_color
                         ),
-                        name=f'{int(level)} min',
-                        showlegend=True,
-                        hovertemplate=f'{int(level)} minutes<extra></extra>'
+                        hovertemplate=f'{int(level)} minutes<extra></extra>',
+                        showlegend=False
                     ))
+
+                    # Add text labels along the contour (visible when zoomed)
+                    # Place labels at regular intervals along the contour
+                    num_labels = max(1, len(segment) // 50)  # Adjust density of labels
+                    label_indices = np.linspace(0, len(segment)-1, num_labels, dtype=int)
+
+                    for idx in label_indices:
+                        fig.add_trace(go.Scattermapbox(
+                            lon=[segment[idx, 0]],
+                            lat=[segment[idx, 1]],
+                            mode='text',
+                            text=[f'{int(level)}min'],
+                            textfont=dict(size=12, color=level_color),
+                            showlegend=False,
+                            hoverinfo='none'
+                        ))
 
         # Add data points (small and semi-transparent)
         fig.add_trace(go.Scattermapbox(
@@ -111,7 +148,8 @@ class MapVisualizer:
                 color='blue',
                 symbol='star'
             ),
-            name='Starting Point'
+            name='Starting Point',
+            showlegend=False
         ))
 
         # Create a colorbar trace
@@ -146,7 +184,7 @@ class MapVisualizer:
                 zoom=11
             ),
             height=800,
-            showlegend=True,
+            showlegend=False,
             margin=dict(l=0, r=0, t=30, b=0)
         )
 
