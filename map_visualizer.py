@@ -79,7 +79,7 @@ class MapVisualizer:
                     ticktext=[f'{i}min' for i in time_intervals],
                     thickness=15,
                     len=0.9,
-                    x=0.98
+                    x=1.02  # Moved further right
                 )
             ),
             showlegend=False,
@@ -134,7 +134,7 @@ class MapVisualizer:
                             fill='toself',
                             fillcolor=color,
                             line=dict(width=0),
-                            opacity=0.35,  # Reduced opacity to see map better
+                            opacity=0.25,  # Reduced opacity further to see map better
                             showlegend=False,
                             hoverinfo='text',
                             hovertext=f'{lower}-{upper} minutes',
