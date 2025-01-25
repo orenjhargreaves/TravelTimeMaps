@@ -3,8 +3,6 @@ import pandas as pd
 import numpy as np
 from typing import Tuple
 from scipy.interpolate import griddata
-from matplotlib.tri import Triangulation, LinearTriInterpolator
-import matplotlib.pyplot as plt
 
 class MapVisualizer:
     def __init__(self):
@@ -66,7 +64,12 @@ class MapVisualizer:
                 start=0,
                 end=max_time,
                 size=5,
-                coloring='fill'
+                coloring='fill',
+                showlines=True,
+                line=dict(
+                    width=2,
+                    color='rgba(0,0,0,0.5)'
+                )
             ),
             colorbar=dict(
                 title='Travel Time (minutes)',
@@ -79,33 +82,6 @@ class MapVisualizer:
             ),
             hovertemplate='%{z:.1f} minutes<extra></extra>'
         ))
-
-        # Add contour lines (simplified)
-        contour_levels = np.arange(0, max_time + 1, 5)
-        for level in contour_levels:
-            cs = plt.contour(xi_mg, yi_mg, zi, levels=[level])
-            plt.close()
-
-            for collection in cs.collections:
-                paths = collection.get_paths()
-                for path in paths:
-                    verts = path.vertices
-                    if len(verts) > 1:
-                        # Simplify line by reducing points
-                        if len(verts) > 50:
-                            verts = verts[::len(verts)//50]
-
-                        fig.add_trace(go.Scattermapbox(
-                            lon=verts[:, 0],
-                            lat=verts[:, 1],
-                            mode='lines',
-                            line=dict(
-                                width=2,
-                                color=self._get_color_for_value(level, max_time)
-                            ),
-                            hovertemplate=f'{int(level)} minutes<extra></extra>',
-                            showlegend=False
-                        ))
 
         # Add data points (optimized for performance)
         if show_raw_data:
