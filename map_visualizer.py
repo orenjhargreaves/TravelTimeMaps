@@ -51,55 +51,61 @@ class MapVisualizer:
 
         fig = go.Figure()
 
-        if not show_raw_data:
-            grid_size = 100
-            lat_min, lat_max = data['lat'].min(), data['lat'].max()
-            lng_min, lng_max = data['lng'].min(), data['lng'].max()
+        # Always create the contour fill
+        grid_size = 100
+        lat_min, lat_max = data['lat'].min(), data['lat'].max()
+        lng_min, lng_max = data['lng'].min(), data['lng'].max()
 
-            lat_pad = (lat_max - lat_min) * 0.1
-            lng_pad = (lng_max - lng_min) * 0.1
-            lat_min -= lat_pad
-            lat_max += lat_pad
-            lng_min -= lng_pad
-            lng_max += lng_pad
+        lat_pad = (lat_max - lat_min) * 0.1
+        lng_pad = (lng_max - lng_min) * 0.1
+        lat_min -= lat_pad
+        lat_max += lat_pad
+        lng_min -= lng_pad
+        lng_max += lng_pad
 
-            lat_grid = np.linspace(lat_min, lat_max, grid_size)
-            lng_grid = np.linspace(lng_min, lng_max, grid_size)
-            lat_mesh, lng_mesh = np.meshgrid(lat_grid, lng_grid)
+        lat_grid = np.linspace(lat_min, lat_max, grid_size)
+        lng_grid = np.linspace(lng_min, lng_max, grid_size)
+        lat_mesh, lng_mesh = np.meshgrid(lat_grid, lng_grid)
 
-            grid_z = griddata(
-                (data['lat'], data['lng']), 
-                data['duration'],
-                (lat_mesh, lng_mesh),
-                method='linear',
-                fill_value=max_time
-            )
+        grid_z = griddata(
+            (data['lat'], data['lng']), 
+            data['duration'],
+            (lat_mesh, lng_mesh),
+            method='linear',
+            fill_value=max_time
+        )
 
-            contour_levels = np.arange(0, max_time + 1, 5)
-            contours = plt.contour(lng_grid, lat_grid, grid_z, levels=contour_levels)
-            plt.close()
+        contour_levels = np.arange(0, max_time + 1, 5)
+        contours = plt.contour(lng_grid, lat_grid, grid_z, levels=contour_levels)
+        plt.close()
 
-            for i, segs in enumerate(contours.allsegs):
-                level = contours.levels[i]
-                level_color = self._get_color_for_value(level, max_time)
+        # Add filled contours with transparency
+        for i, segs in enumerate(contours.allsegs):
+            level = contours.levels[i]
+            level_color = self._get_color_for_value(level, max_time)
 
-                for segment in segs:
-                    if len(segment) > 1:
-                        fig.add_trace(go.Scattermapbox(
-                            lon=segment[:, 0],
-                            lat=segment[:, 1],
-                            mode='lines',
-                            line=dict(
-                                width=2,
-                                color=level_color
-                            ),
-                            hovertemplate=f'{int(level)} minutes<extra></extra>',
-                            showlegend=False
-                        ))
+            for segment in segs:
+                if len(segment) > 1:
+                    # Add filled area with transparency
+                    color_rgb = level_color.replace('rgb', 'rgba').replace(')', ', 0.2)')
+                    fig.add_trace(go.Scattermapbox(
+                        lon=segment[:, 0],
+                        lat=segment[:, 1],
+                        mode='lines',
+                        fill='toself',
+                        fillcolor=color_rgb,
+                        line=dict(
+                            width=2,
+                            color=level_color
+                        ),
+                        hovertemplate=f'{int(level)} minutes<extra></extra>',
+                        showlegend=False
+                    ))
 
         marker_size = 8 if show_raw_data else 4
         opacity = 1.0 if show_raw_data else 0.3
 
+        # Add data points
         fig.add_trace(go.Scattermapbox(
             lat=data['lat'],
             lon=data['lng'],
@@ -126,6 +132,7 @@ class MapVisualizer:
             showlegend=False
         ))
 
+        # Add center point
         fig.add_trace(go.Scattermapbox(
             lat=[center[0]],
             lon=[center[1]],

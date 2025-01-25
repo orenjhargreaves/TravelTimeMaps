@@ -74,6 +74,7 @@ with st.sidebar:
 
 # Create placeholder for map
 map_placeholder = st.empty()
+progress_message = st.empty()  # Add this line to show progress updates
 
 # Create container for the toggle button
 toggle_container = st.container()
@@ -89,12 +90,16 @@ try:
                 time_step=5,
                 mode=mode,
                 radius_km=radius_km,
-                point_spacing_meters=point_spacing_meters  # Updated parameter name
+                point_spacing_meters=point_spacing_meters
             )
             visualizer = MapVisualizer()
 
+            # Add progress message update
+            def update_progress(message):
+                progress_message.text(message)
+
             # Calculate travel times
-            travel_times = calculator.calculate_travel_times()
+            travel_times = calculator.calculate_travel_times(progress_callback=update_progress)
 
             # Store in session state
             st.session_state.calculator = calculator
@@ -110,6 +115,7 @@ try:
 
             # Display the map in the placeholder
             map_placeholder.plotly_chart(fig, use_container_width=True, key="map_new")
+            progress_message.empty()  # Clear progress message after completion
 
     elif st.session_state.calculator and st.session_state.visualizer:
         # Update visualization with current toggle state
