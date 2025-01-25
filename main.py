@@ -50,13 +50,21 @@ with st.sidebar:
         help="Number of points per circle (higher values give more detailed results)"
     )
 
+    # Transportation mode mapping
+    mode_mapping = {
+        "Driving": "driving",
+        "Walking": "walking",
+        "Cycling": "bicycling"
+    }
+
     # Transportation mode
-    mode = st.selectbox(
+    display_mode = st.selectbox(
         "Transportation Mode",
-        ["Driving", "Walking", "Cycling"],  # Updated labels
+        list(mode_mapping.keys()),  # Updated labels
         index=0,
         format_func=lambda x: x  # Ensures proper case display
-    ).lower()  # Convert to lowercase for API
+    )
+    mode = mode_mapping[display_mode]  # Convert display name to API mode
 
     # Calculate button
     calculate = st.button("Calculate Contours")

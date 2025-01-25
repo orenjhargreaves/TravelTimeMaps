@@ -124,8 +124,6 @@ class MapVisualizer:
                                 # Offset by 0.0003 degrees (roughly 30 meters)
                                 offset_x = -dy/length * 0.0003
                                 offset_y = dx/length * 0.0003
-                                # Calculate angle for text rotation
-                                angle = math.degrees(math.atan2(dy, dx))
 
                                 fig.add_trace(go.Scattermapbox(
                                     lon=[segment[idx, 0] + offset_x],
@@ -136,7 +134,6 @@ class MapVisualizer:
                                         size=12,
                                         color=level_color
                                     ),
-                                    textangle=angle,  # Rotate text to follow contour
                                     showlegend=False,
                                     hoverinfo='none'
                                 ))
