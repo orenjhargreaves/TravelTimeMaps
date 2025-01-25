@@ -66,11 +66,11 @@ class MapVisualizer:
         # Apply mask
         zi = np.ma.masked_array(zi, ~mask)
 
-        # Add filled contours with custom colorscale
-        fig.add_trace(go.Contourcarpet(
-            a=xi_mg.flatten(),
-            b=yi_mg.flatten(),
-            z=zi.flatten(),
+        # Add contour fill
+        fig.add_trace(go.Contour(
+            x=xi,
+            y=yi,
+            z=zi,
             colorscale=self.colorscale,
             opacity=0.4,
             showscale=True,
@@ -78,7 +78,7 @@ class MapVisualizer:
                 start=0,
                 end=max_time,
                 size=5,
-                coloring='heatmap'
+                coloring='fill'
             ),
             colorbar=dict(
                 title='Travel Time (minutes)',
@@ -92,17 +92,14 @@ class MapVisualizer:
             hovertemplate='%{z:.1f} minutes<extra></extra>'
         ))
 
-        # Add contour lines
+        # Add contour lines with better visibility
         contour_levels = np.arange(0, max_time + 1, 5)
         contours = plt.contour(xi_mg, yi_mg, zi, levels=contour_levels)
         plt.close()
 
-        # Add contour lines with better visibility
-        for i, level in enumerate(contour_levels):
-            level_color = self._get_color_for_value(level, max_time)
-            level_data = contours.collections[i].get_paths()
-
-            for path in level_data:
+        for collection, level in zip(contours.collections, contour_levels):
+            paths = collection.get_paths()
+            for path in paths:
                 vertices = path.vertices
                 if len(vertices) > 1:
                     fig.add_trace(go.Scattermapbox(
@@ -111,7 +108,7 @@ class MapVisualizer:
                         mode='lines',
                         line=dict(
                             width=2,
-                            color=level_color
+                            color=self._get_color_for_value(level, max_time)
                         ),
                         hovertemplate=f'{int(level)} minutes<extra></extra>',
                         showlegend=False
