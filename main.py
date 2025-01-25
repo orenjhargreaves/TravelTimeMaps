@@ -23,38 +23,40 @@ st.title("Travel Time Contour Map")
 # Sidebar controls
 with st.sidebar:
     st.header("Settings")
-    
+
     # Location input
     location = st.text_input(
         "Starting Location",
         "New York, NY",
         help="Enter an address or landmark"
     )
-    
-    # Time range settings
-    max_time = st.slider(
-        "Maximum Travel Time (minutes)",
-        15,
-        120,
-        60,
-        step=15
-    )
-    
-    time_step = st.slider(
-        "Time Interval (minutes)",
+
+    # Travel distance setting
+    radius_km = st.slider(
+        "Maximum Travel Distance (km)",
+        1,
+        20,
         5,
-        30,
-        15,
-        step=5
+        step=1,
+        help="Maximum radius to analyze around the starting point"
     )
-    
+
+    point_density = st.slider(
+        "Point Density",
+        8,
+        64,
+        32,
+        step=8,
+        help="Number of points per circle (higher values give more detailed results)"
+    )
+
     # Transportation mode
     mode = st.selectbox(
         "Transportation Mode",
-        ["driving", "walking", "bicycling", "transit"],
+        ["driving", "walking", "bicycling"],  # Removed transit temporarily
         index=0
     )
-    
+
     # Calculate button
     calculate = st.button("Calculate Contours")
 
@@ -62,36 +64,43 @@ with st.sidebar:
 try:
     if calculate:
         with st.spinner("Calculating travel times..."):
-            # Initialize calculator and visualizer
-            calculator = TravelTimeCalculator(location, max_time, time_step, mode)
+            # Initialize calculator and visualizer with new parameters
+            calculator = TravelTimeCalculator(
+                location=location,
+                max_time=60,  # Fixed value since we're using distance-based control
+                time_step=5,
+                mode=mode,
+                radius_km=radius_km,
+                point_density=point_density
+            )
             visualizer = MapVisualizer()
-            
+
             # Calculate travel times
             travel_times = calculator.calculate_travel_times()
-            
+
             # Store in session state
             st.session_state.calculator = calculator
             st.session_state.visualizer = visualizer
-            
+
             # Create visualization
             fig = visualizer.create_contour_map(
                 travel_times,
                 calculator.center_location,
-                max_time
+                60  # Fixed maximum time display
             )
-            
+
             # Display the map
             st.plotly_chart(fig, use_container_width=True)
-            
+
     elif st.session_state.calculator and st.session_state.visualizer:
         # Display previously calculated map
         fig = st.session_state.visualizer.create_contour_map(
             st.session_state.calculator.last_result,
             st.session_state.calculator.center_location,
-            max_time
+            60  # Fixed maximum time display
         )
         st.plotly_chart(fig, use_container_width=True)
-    
+
     else:
         st.info("Enter a location and click 'Calculate Contours' to begin")
 

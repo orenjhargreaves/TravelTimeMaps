@@ -7,7 +7,7 @@ import json
 import math
 
 class TravelTimeCalculator:
-    def __init__(self, location: str, max_time: int, time_step: int, mode: str):
+    def __init__(self, location: str, max_time: int, time_step: int, mode: str, radius_km: float = 5, point_density: int = 32):
         """Initialize the calculator with location and parameters."""
         api_key = os.environ.get('GOOGLE_MAPS_API_KEY')
         if not api_key:
@@ -18,6 +18,8 @@ class TravelTimeCalculator:
         self.max_time = max_time
         self.time_step = time_step
         self.mode = mode
+        self.radius_km = radius_km
+        self.point_density = point_density
         self.center_location = self._geocode_location()
         self.last_result = None
 
@@ -71,7 +73,7 @@ class TravelTimeCalculator:
                 )
             raise
 
-    def _generate_radial_points(self, radius_km: float = 5) -> List[Tuple[float, float]]:
+    def _generate_radial_points(self) -> List[Tuple[float, float]]:
         """Generate points in concentric circles around the center location."""
         lat, lng = self.center_location
         points = [(lat, lng)]  # Include center point
@@ -82,10 +84,10 @@ class TravelTimeCalculator:
 
         # Generate concentric circles with increasing radius
         num_circles = 8
-        points_per_circle = 32  # Must be divisible by 4 for even distribution
+        points_per_circle = self.point_density  # Use configured point density
 
         for radius_idx in range(num_circles):
-            radius = (radius_idx + 1) * (radius_km / num_circles)
+            radius = (radius_idx + 1) * (self.radius_km / num_circles)
 
             # Generate points around the circle
             for angle_idx in range(points_per_circle):

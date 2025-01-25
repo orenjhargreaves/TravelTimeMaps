@@ -47,29 +47,6 @@ class MapVisualizer:
         # Create base figure
         fig = go.Figure()
 
-        # Add contour layer
-        fig.add_trace(go.Contour(
-            z=duration_grid,
-            x=lng_range,  # Note: x corresponds to longitude
-            y=lat_range,  # y corresponds to latitude
-            colorscale=self.colorscale,
-            contours=dict(
-                start=0,
-                end=max_time,
-                size=5,  # Contour lines every 5 minutes
-                showlabels=True,
-                labelfont=dict(size=12, color='white')
-            ),
-            colorbar=dict(
-                title='Travel Time (minutes)',
-                thickness=15,
-                len=0.9,
-                tickfont=dict(size=12)
-            ),
-            hoverongaps=False,
-            showscale=True
-        ))
-
         # Add data points (semi-transparent)
         fig.add_trace(go.Scattermapbox(
             lat=data['lat'],
@@ -99,11 +76,31 @@ class MapVisualizer:
             name='Starting Point'
         ))
 
+        # Create contour overlay using density_mapbox
+        fig.add_trace(go.Densitymapbox(
+            lat=data['lat'],
+            lon=data['lng'],
+            z=data['duration'],
+            radius=20,
+            colorscale=self.colorscale,
+            zmin=0,
+            zmax=max_time,
+            showscale=True,
+            colorbar=dict(
+                title='Travel Time (minutes)',
+                thickness=15,
+                len=0.9,
+                tickfont=dict(size=12)
+            ),
+            hoverongaps=False,
+            name='Travel Time Contours'
+        ))
+
         # Update layout with mapbox
         fig.update_layout(
             title='Travel Time Contours',
             mapbox=dict(
-                style='carto-positron',  # Use Carto basemap (no API key needed)
+                style='carto-positron',
                 center=dict(lat=center[0], lon=center[1]),
                 zoom=11
             ),
