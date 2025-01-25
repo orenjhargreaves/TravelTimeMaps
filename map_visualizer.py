@@ -51,7 +51,7 @@ class MapVisualizer:
 
         fig = go.Figure()
 
-        # Always create the contour fill
+        # Create the contour fill
         grid_size = 100
         lat_min, lat_max = data['lat'].min(), data['lat'].max()
         lng_min, lng_max = data['lng'].min(), data['lng'].max()
@@ -75,32 +75,31 @@ class MapVisualizer:
             fill_value=max_time
         )
 
-        contour_levels = np.arange(0, max_time + 1, 5)
-        contours = plt.contour(lng_grid, lat_grid, grid_z, levels=contour_levels)
-        plt.close()
-
-        # Add filled contours with transparency
-        for i, segs in enumerate(contours.allsegs):
-            level = contours.levels[i]
-            level_color = self._get_color_for_value(level, max_time)
-
-            for segment in segs:
-                if len(segment) > 1:
-                    # Add filled area with transparency
-                    color_rgb = level_color.replace('rgb', 'rgba').replace(')', ', 0.2)')
-                    fig.add_trace(go.Scattermapbox(
-                        lon=segment[:, 0],
-                        lat=segment[:, 1],
-                        mode='lines',
-                        fill='toself',
-                        fillcolor=color_rgb,
-                        line=dict(
-                            width=2,
-                            color=level_color
-                        ),
-                        hovertemplate=f'{int(level)} minutes<extra></extra>',
-                        showlegend=False
-                    ))
+        # Create contours with filled areas
+        fig.add_trace(go.Contourmapbox(
+            lat=lat_grid,
+            lon=lng_grid,
+            z=grid_z,
+            colorscale=self.colorscale,
+            opacity=0.3,
+            showscale=True,
+            contours=dict(
+                start=0,
+                end=max_time,
+                size=5,
+                coloring='heatmap'
+            ),
+            colorbar=dict(
+                title='Travel Time (minutes)',
+                thickness=15,
+                len=0.9,
+                tickfont=dict(size=12),
+                tickmode='array',
+                tickvals=list(range(0, max_time + 1, 5)),
+                ticktext=[f'{i}min' for i in range(0, max_time + 1, 5)]
+            ),
+            hovertemplate='%{z:.1f} minutes<extra></extra>'
+        ))
 
         marker_size = 8 if show_raw_data else 4
         opacity = 1.0 if show_raw_data else 0.3
@@ -115,16 +114,7 @@ class MapVisualizer:
                 color=data['duration'],
                 colorscale=self.colorscale,
                 opacity=opacity,
-                showscale=True,
-                colorbar=dict(
-                    title='Travel Time (minutes)',
-                    thickness=15,
-                    len=0.9,
-                    tickfont=dict(size=12),
-                    tickmode='array',
-                    tickvals=list(range(0, max_time + 1, 5)),
-                    ticktext=[f'{i}min' for i in range(0, max_time + 1, 5)]
-                )
+                showscale=False
             ),
             text=data['duration'].apply(lambda x: f'{x:.1f}min') if show_raw_data else None,
             textposition="top center" if show_raw_data else None,

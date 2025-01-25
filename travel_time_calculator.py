@@ -133,13 +133,19 @@ class TravelTimeCalculator:
 
                 if rate and rate > 0:  # Only calculate ETA if we have a valid rate
                     eta_minutes = (remaining_batches / rate) / 60
-                    eta_message = f" Estimated time remaining: {eta_minutes:.1f} minutes"
+                    if eta_minutes >= 1:
+                        eta_text = f"{eta_minutes:.1f} minutes"
+                    else:
+                        eta_seconds = int(eta_minutes * 60)
+                        eta_text = f"{eta_seconds} seconds"
                 else:
-                    eta_message = ""
+                    eta_text = "calculating..."
 
                 self.progress_callback(
-                    f"Processing points: {progress_info['points_processed']} complete "
-                    f"({progress_info['success_rate']} success rate).{eta_message}"
+                    f"Processing {len(results)}/{len(points)} points "
+                    f"({(len(results) / len(points) * 100):.1f}% complete). "
+                    f"Success rate: {progress_info['success_rate']}. "
+                    f"Time remaining: {eta_text}"
                 )
 
         return results
