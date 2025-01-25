@@ -1,11 +1,10 @@
 import plotly.graph_objects as go
-import plotly.figure_factory as ff
 import pandas as pd
 import numpy as np
 from typing import Tuple
 from scipy.interpolate import griddata
 import matplotlib.pyplot as plt
-import math
+from matplotlib.tri import Triangulation, LinearTriInterpolator
 
 class MapVisualizer:
     def __init__(self):
@@ -32,11 +31,12 @@ class MapVisualizer:
 
         fig = go.Figure()
 
-        # Create interpolated grid for smooth contours
-        grid_size = 100
+        # Create high-resolution grid for smooth interpolation
+        grid_size = 200  # Increased for better resolution
         lat_min, lat_max = data['lat'].min(), data['lat'].max()
         lng_min, lng_max = data['lng'].min(), data['lng'].max()
 
+        # Add padding to the boundaries
         lat_pad = (lat_max - lat_min) * 0.1
         lng_pad = (lng_max - lng_min) * 0.1
         lat_min -= lat_pad
@@ -44,28 +44,42 @@ class MapVisualizer:
         lng_min -= lng_pad
         lng_max += lng_pad
 
-        lat_grid = np.linspace(lat_min, lat_max, grid_size)
-        lng_grid = np.linspace(lng_min, lng_max, grid_size)
-        lat_mesh, lng_mesh = np.meshgrid(lat_grid, lng_grid)
+        # Create triangulation for better interpolation
+        triang = Triangulation(data['lng'], data['lat'])
+        interpolator = LinearTriInterpolator(triang, data['duration'])
+
+        # Create dense grid
+        xi = np.linspace(lng_min, lng_max, grid_size)
+        yi = np.linspace(lat_min, lat_max, grid_size)
+        xi_mg, yi_mg = np.meshgrid(xi, yi)
 
         # Interpolate values
-        grid_z = griddata(
-            (data['lat'], data['lng']), 
-            data['duration'],
-            (lat_mesh, lng_mesh),
-            method='linear',
-            fill_value=max_time
-        )
+        zi = interpolator(xi_mg, yi_mg)
 
-        # Add heatmap layer with very low opacity for the fill
-        fig.add_trace(go.Densitymapbox(
-            lat=data['lat'],
-            lon=data['lng'],
-            z=data['duration'],
-            radius=50,
-            opacity=0.3,
+        # Create mask for points too far from data
+        mask = np.zeros_like(zi, dtype=bool)
+        for i in range(len(data)):
+            x, y = data.iloc[i][['lng', 'lat']]
+            distances = np.sqrt((xi_mg - x)**2 + (yi_mg - y)**2)
+            mask |= distances < 0.01  # Adjust this value to control the interpolation extent
+
+        # Apply mask
+        zi = np.ma.masked_array(zi, ~mask)
+
+        # Add filled contours with custom colorscale
+        fig.add_trace(go.Contourcarpet(
+            a=xi_mg.flatten(),
+            b=yi_mg.flatten(),
+            z=zi.flatten(),
             colorscale=self.colorscale,
+            opacity=0.4,
             showscale=True,
+            contours=dict(
+                start=0,
+                end=max_time,
+                size=5,
+                coloring='heatmap'
+            ),
             colorbar=dict(
                 title='Travel Time (minutes)',
                 thickness=15,
@@ -80,18 +94,20 @@ class MapVisualizer:
 
         # Add contour lines
         contour_levels = np.arange(0, max_time + 1, 5)
-        contours = plt.contour(lng_grid, lat_grid, grid_z, levels=contour_levels)
+        contours = plt.contour(xi_mg, yi_mg, zi, levels=contour_levels)
         plt.close()
 
-        for i, segs in enumerate(contours.allsegs):
-            level = contours.levels[i]
+        # Add contour lines with better visibility
+        for i, level in enumerate(contour_levels):
             level_color = self._get_color_for_value(level, max_time)
+            level_data = contours.collections[i].get_paths()
 
-            for segment in segs:
-                if len(segment) > 1:
+            for path in level_data:
+                vertices = path.vertices
+                if len(vertices) > 1:
                     fig.add_trace(go.Scattermapbox(
-                        lon=segment[:, 0],
-                        lat=segment[:, 1],
+                        lon=vertices[:, 0],
+                        lat=vertices[:, 1],
                         mode='lines',
                         line=dict(
                             width=2,
@@ -101,10 +117,10 @@ class MapVisualizer:
                         showlegend=False
                     ))
 
+        # Add data points with conditional visibility
         marker_size = 8 if show_raw_data else 4
         opacity = 1.0 if show_raw_data else 0.3
 
-        # Add data points
         fig.add_trace(go.Scattermapbox(
             lat=data['lat'],
             lon=data['lng'],

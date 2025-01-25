@@ -85,49 +85,43 @@ toggle_container = st.container()
 # Main content area
 try:
     if calculate:
-        with st.spinner("Calculating travel times..."):
-            # Initialize calculator and visualizer with new parameters
-            calculator = TravelTimeCalculator(
-                location=location,
-                max_time=60,
-                time_step=5,
-                mode=mode,
-                radius_km=radius_km,
-                point_spacing_meters=point_spacing_meters
-            )
-            visualizer = MapVisualizer()
+        # Initialize calculator and visualizer with new parameters
+        calculator = TravelTimeCalculator(
+            location=location,
+            max_time=60,
+            time_step=5,
+            mode=mode,
+            radius_km=radius_km,
+            point_spacing_meters=point_spacing_meters
+        )
+        visualizer = MapVisualizer()
 
-            # Add progress update function
-            def update_progress(message):
-                # Extract progress percentage if available
-                if "%" in message:
-                    try:
-                        percentage = float(message.split("%")[0].split(" ")[-1])
-                        progress_bar.progress(percentage / 100)
-                    except:
-                        pass
-                progress_text.text(message)
+        # Add progress update function
+        def update_progress(message, percentage=None):
+            if percentage is not None:
+                progress_bar.progress(percentage)
+            progress_text.text(message)
 
-            # Calculate travel times
-            travel_times = calculator.calculate_travel_times(progress_callback=update_progress)
+        # Calculate travel times
+        travel_times = calculator.calculate_travel_times(progress_callback=update_progress)
 
-            # Store in session state
-            st.session_state.calculator = calculator
-            st.session_state.visualizer = visualizer
+        # Store in session state
+        st.session_state.calculator = calculator
+        st.session_state.visualizer = visualizer
 
-            # Create visualization
-            fig = visualizer.create_contour_map(
-                travel_times,
-                calculator.center_location,
-                60,
-                show_raw_data=st.session_state.show_raw_data
-            )
+        # Create visualization
+        fig = visualizer.create_contour_map(
+            travel_times,
+            calculator.center_location,
+            60,
+            show_raw_data=st.session_state.show_raw_data
+        )
 
-            # Display the map in the placeholder
-            map_placeholder.plotly_chart(fig, use_container_width=True, key="map_new")
-            # Clear progress indicators after completion
-            progress_text.empty()
-            progress_bar.empty()
+        # Display the map in the placeholder
+        map_placeholder.plotly_chart(fig, use_container_width=True, key="map_new")
+        # Clear progress indicators after completion
+        progress_text.empty()
+        progress_bar.empty()
 
     elif st.session_state.calculator and st.session_state.visualizer:
         # Update visualization with current toggle state
@@ -153,7 +147,7 @@ try:
             # Update session state if toggle changes
             if show_raw_data != st.session_state.show_raw_data:
                 st.session_state.show_raw_data = show_raw_data
-                st.rerun()  # Use st.rerun() instead of st.experimental_rerun()
+                st.rerun()
 
     else:
         # Show empty map container

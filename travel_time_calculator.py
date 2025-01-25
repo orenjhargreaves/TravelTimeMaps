@@ -10,7 +10,7 @@ from functools import lru_cache
 import threading
 from queue import Queue
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from tqdm import tqdm
+#from tqdm import tqdm
 
 class TravelTimeCalculator:
     def __init__(self, location: str, max_time: int, time_step: int, mode: str, radius_km: float = 5, point_spacing_meters: float = 500):
@@ -71,18 +71,12 @@ class TravelTimeCalculator:
     def _process_batch(self, points: List[Tuple[float, float]], batch_size: int = 25) -> List[Dict]:
         """Process a batch of points and return their travel time data."""
         results = []
+        total_points = len(points)
 
-        # Process points in batches with enhanced progress bar
-        total_batches = (len(points) + batch_size - 1) // batch_size
-        progress_bar = tqdm(
-            range(0, len(points), batch_size),
-            desc="Calculating travel times",
-            total=total_batches,
-            unit="batch",
-            bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} batches [{elapsed}<{remaining}, {rate_fmt}{postfix}]"
-        )
+        # Process points in batches
+        total_batches = (total_points + batch_size - 1) // batch_size
 
-        for i in progress_bar:
+        for i in range(0, total_points, batch_size):
             batch = points[i:i + batch_size]
             batch_results = []
 
@@ -119,33 +113,33 @@ class TravelTimeCalculator:
                         print(f"Error calculating travel time to ({dest_lat}, {dest_lng}): {str(e)}")
 
             results.extend(batch_results)
-            # Update progress bar with detailed status
-            progress_info = {
-                "points_processed": len(results),
-                "success_rate": f"{(len(results) / (i + len(batch)) * 100):.1f}%"
-            }
-            progress_bar.set_postfix(progress_info)
 
-            # Update Streamlit progress with proper error handling
+            # Calculate progress percentage and update
+            points_processed = len(results)
+            percentage = points_processed / total_points
+            success_rate = (points_processed / (i + len(batch))) * 100
+
             if self.progress_callback:
-                remaining_batches = total_batches - (i // batch_size) - 1
-                rate = progress_bar.format_dict.get('rate')
+                # Calculate remaining time
+                remaining_points = total_points - points_processed
+                points_per_batch = len(batch_results)
+                if points_per_batch > 0:
+                    batches_remaining = remaining_points / points_per_batch
+                    seconds_per_batch = 0.5  # Estimated time per batch
+                    remaining_seconds = batches_remaining * seconds_per_batch
 
-                if rate and rate > 0:  # Only calculate ETA if we have a valid rate
-                    eta_minutes = (remaining_batches / rate) / 60
-                    if eta_minutes >= 1:
-                        eta_text = f"{eta_minutes:.1f} minutes"
+                    if remaining_seconds >= 60:
+                        time_remaining = f"{remaining_seconds/60:.1f} minutes"
                     else:
-                        eta_seconds = int(eta_minutes * 60)
-                        eta_text = f"{eta_seconds} seconds"
+                        time_remaining = f"{int(remaining_seconds)} seconds"
                 else:
-                    eta_text = "calculating..."
+                    time_remaining = "calculating..."
 
                 self.progress_callback(
-                    f"Processing {len(results)}/{len(points)} points "
-                    f"({(len(results) / len(points) * 100):.1f}% complete). "
-                    f"Success rate: {progress_info['success_rate']}. "
-                    f"Time remaining: {eta_text}"
+                    f"Processing point {points_processed} of {total_points}. "
+                    f"Success rate: {success_rate:.1f}%. "
+                    f"Time remaining: {time_remaining}",
+                    percentage
                 )
 
         return results
