@@ -126,17 +126,21 @@ class TravelTimeCalculator:
             }
             progress_bar.set_postfix(progress_info)
 
-            # Update Streamlit progress
+            # Update Streamlit progress with proper error handling
             if self.progress_callback:
                 remaining_batches = total_batches - (i // batch_size) - 1
-                eta_seconds = progress_bar.format_dict.get('rate', 0)
-                if eta_seconds > 0:
-                    eta_minutes = (remaining_batches / eta_seconds) / 60
-                    self.progress_callback(
-                        f"Processing points: {progress_info['points_processed']} complete "
-                        f"({progress_info['success_rate']} success rate). "
-                        f"Estimated time remaining: {eta_minutes:.1f} minutes"
-                    )
+                rate = progress_bar.format_dict.get('rate')
+
+                if rate and rate > 0:  # Only calculate ETA if we have a valid rate
+                    eta_minutes = (remaining_batches / rate) / 60
+                    eta_message = f" Estimated time remaining: {eta_minutes:.1f} minutes"
+                else:
+                    eta_message = ""
+
+                self.progress_callback(
+                    f"Processing points: {progress_info['points_processed']} complete "
+                    f"({progress_info['success_rate']} success rate).{eta_message}"
+                )
 
         return results
 
