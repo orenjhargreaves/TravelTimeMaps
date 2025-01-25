@@ -31,7 +31,7 @@ class MapVisualizer:
         fig = go.Figure()
 
         # Create optimized grid for interpolation
-        grid_size = 40  # Optimized for performance
+        grid_size = 100  # Increased for smoother visualization
         lat_min, lat_max = data['lat'].min(), data['lat'].max()
         lng_min, lng_max = data['lng'].min(), data['lng'].max()
 
@@ -48,10 +48,10 @@ class MapVisualizer:
         yi = np.linspace(lat_min, lat_max, grid_size)
         xi_mg, yi_mg = np.meshgrid(xi, yi)
 
-        # Simple interpolation
+        # Interpolate with higher resolution
         points = np.column_stack((data['lng'], data['lat']))
         values = data['duration'].values
-        zi = griddata(points, values, (xi_mg, yi_mg), method='linear')
+        zi = griddata(points, values, (xi_mg, yi_mg), method='cubic')
 
         # Create heatmap using scattermapbox
         heatmap_points = []
@@ -73,11 +73,13 @@ class MapVisualizer:
             lon=heatmap_df['lon'],
             mode='markers',
             marker=dict(
-                size=15,
+                size=8,  # Reduced size for better blending
                 color=heatmap_df['duration'],
                 colorscale=self.colorscale,
-                opacity=0.6,
+                opacity=0.8,  # Increased opacity
                 showscale=True,
+                cmin=0,  # Set minimum value
+                cmax=max_time,  # Set maximum value
                 colorbar=dict(
                     title='Travel Time (minutes)',
                     thickness=15,
