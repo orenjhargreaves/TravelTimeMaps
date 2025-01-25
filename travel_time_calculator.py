@@ -12,8 +12,18 @@ from queue import Queue
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 class TravelTimeCalculator:
-    def __init__(self, location: str, max_time: int, time_step: int, mode: str, radius_km: float = 5, point_density: int = 32):
-        """Initialize the calculator with location and parameters."""
+    def __init__(self, location: str, max_time: int, time_step: int, mode: str, radius_km: float = 5, point_spacing_meters: float = 500):
+        """
+        Initialize the calculator with location and parameters.
+
+        Args:
+            location: Starting location address or landmark
+            max_time: Maximum travel time in minutes
+            time_step: Time step for contours in minutes
+            mode: Transportation mode (driving, walking, bicycling, transit)
+            radius_km: Maximum radius to analyze in kilometers
+            point_spacing_meters: Distance between sampling points in meters
+        """
         api_key = os.environ.get('GOOGLE_MAPS_API_KEY')
         if not api_key:
             raise ValueError("Google Maps API key not found in environment variables")
@@ -24,7 +34,7 @@ class TravelTimeCalculator:
         self.time_step = time_step
         self.mode = mode
         self.radius_km = radius_km
-        self.point_density = point_density
+        self.point_spacing_meters = point_spacing_meters
         self.center_location = self._geocode_location()
         self.last_result = None
         self._cache_lock = threading.Lock()
@@ -106,40 +116,44 @@ class TravelTimeCalculator:
             raise
 
     def _generate_radial_points(self) -> List[Tuple[float, float]]:
-        """Generate points in concentric circles around the center location."""
+        """Generate points with specified spacing around the center location."""
         lat, lng = self.center_location
         points = [(lat, lng)]  # Include center point
 
         # Constants for coordinate conversion
-        km_per_lat = 111.0  # Approximate km per degree latitude
-        km_per_lng = 111.0 * math.cos(math.radians(lat))  # Adjust for latitude
+        earth_radius = 6371000  # Earth's radius in meters
+        lat_rad = math.radians(lat)
 
-        # Scale number of circles and points based on density
-        base_circles = 4
-        base_points = 8
-        num_circles = base_circles + (self.point_density // 16)  # More circles for higher density
-        points_per_circle = base_points + (self.point_density // 4)  # More points per circle for higher density
+        # Calculate number of circles based on radius and point spacing
+        meters_per_degree_lat = 111320  # Approximate meters per degree of latitude
+        meters_per_degree_lng = 111320 * math.cos(lat_rad)  # Adjust for latitude
 
-        # Generate points with exponential radius distribution
+        # Calculate the number of circles needed to cover the radius
+        num_circles = int(self.radius_km * 1000 / self.point_spacing_meters)
+
         for circle_idx in range(num_circles):
-            # Use exponential distribution for radius to get more detail near center
-            radius_factor = (circle_idx + 1) / num_circles
-            radius = self.radius_km * (1 - math.exp(-3 * radius_factor))
+            # Calculate radius for this circle
+            radius_meters = (circle_idx + 1) * self.point_spacing_meters
+            radius_km = radius_meters / 1000
 
-            # Increase point density for inner circles
-            current_points = int(points_per_circle * (1 + (1 - radius_factor) * 2))
+            if radius_km > self.radius_km:
+                break
+
+            # Calculate number of points needed for this circle to maintain spacing
+            circle_circumference = 2 * math.pi * radius_meters
+            num_points = max(8, int(circle_circumference / self.point_spacing_meters))
 
             # Generate points around the circle
-            for point_idx in range(current_points):
-                angle = (point_idx * 2 * math.pi) / current_points
+            for point_idx in range(num_points):
+                angle = (point_idx * 2 * math.pi) / num_points
 
-                # Add some randomness to avoid perfect circles
-                radius_jitter = radius * (1 + 0.1 * (np.random.random() - 0.5))
+                # Add small random variation to prevent grid artifacts
+                radius_jitter = radius_meters * (1 + 0.1 * (np.random.random() - 0.5))
                 angle_jitter = angle + 0.1 * (np.random.random() - 0.5)
 
-                # Convert polar coordinates to lat/lng
-                dlat = (radius_jitter * math.cos(angle_jitter)) / km_per_lat
-                dlng = (radius_jitter * math.sin(angle_jitter)) / km_per_lng
+                # Convert to lat/lng
+                dlat = (radius_jitter * math.cos(angle_jitter)) / meters_per_degree_lat
+                dlng = (radius_jitter * math.sin(angle_jitter)) / meters_per_degree_lng
 
                 points.append((lat + dlat, lng + dlng))
 

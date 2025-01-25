@@ -43,13 +43,14 @@ with st.sidebar:
         help="Maximum radius to analyze around the starting point"
     )
 
-    point_density = st.slider(
-        "Point Density",
-        16,
-        1024, 
-        128,  # Default to 128
-        step=16,
-        help="Number of points per circle (higher values give more detailed results)"
+    # Update point density to use meters between points
+    point_spacing_meters = st.slider(
+        "Distance Between Points (meters)",
+        100,
+        1000, 
+        500,  # Default to 500m
+        step=100,
+        help="Distance between sampling points. Lower values give more detailed results but take longer to calculate"
     )
 
     # Transportation mode mapping
@@ -88,7 +89,7 @@ try:
                 time_step=5,
                 mode=mode,
                 radius_km=radius_km,
-                point_density=point_density
+                point_spacing_meters=point_spacing_meters  # Updated parameter name
             )
             visualizer = MapVisualizer()
 
