@@ -151,11 +151,14 @@ class TravelTimeCalculator:
                 )
 
                 if directions and directions[0].get('legs'):
-                    # Extract duration in minutes
-                    duration = directions[0]['legs'][0]['duration']['value'] / 60
+                    # Extract duration in minutes and actual end coordinates
+                    leg = directions[0]['legs'][0]
+                    duration = leg['duration']['value'] / 60
+                    actual_end_location = leg['end_location']
+
                     results.append({
-                        'lat': dest_lat,
-                        'lng': dest_lng,
+                        'lat': actual_end_location['lat'],
+                        'lng': actual_end_location['lng'],
                         'duration': duration
                     })
                     print(f"Successfully calculated duration: {duration} minutes")

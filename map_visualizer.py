@@ -188,8 +188,7 @@ class MapVisualizer:
             mapbox=dict(
                 style='carto-positron',
                 center=dict(lat=center[0], lon=center[1]),
-                zoom=11,
-                scrollZoom=True  # Enable scroll zooming
+                zoom=11
             ),
             height=800,
             showlegend=False,
