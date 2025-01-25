@@ -1,5 +1,6 @@
 {pkgs}: {
   deps = [
+    pkgs.geos
     pkgs.tk
     pkgs.tcl
     pkgs.qhull

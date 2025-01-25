@@ -3,6 +3,10 @@ import pandas as pd
 import numpy as np
 from typing import Tuple
 from scipy.interpolate import griddata
+from scipy.ndimage import gaussian_filter
+import shapely.geometry as geometry
+from shapely.ops import unary_union
+import geopandas as gpd
 
 class MapVisualizer:
     def __init__(self):
@@ -53,28 +57,72 @@ class MapVisualizer:
         values = data['duration'].values
         zi = griddata(points, values, (xi_mg, yi_mg), method='cubic')
 
-        # Add heatmap layer using densitymapbox
-        fig.add_densitymapbox(
-            lat=data['lat'],
-            lon=data['lng'],
-            z=data['duration'],
-            radius=50,
-            colorscale=self.colorscale,
-            zmin=0,
-            zmax=max_time,
-            opacity=0.8,
-            showscale=True,
-            colorbar=dict(
-                title='Travel Time (minutes)',
-                thickness=15,
-                len=0.9,
-                tickfont=dict(size=12),
-                tickmode='array',
-                tickvals=list(range(0, max_time + 1, 5)),
-                ticktext=[f'{i}min' for i in range(0, max_time + 1, 5)]
-            ),
-            hovertemplate='%{z:.1f} minutes<extra></extra>'
-        )
+        # Smooth the interpolated data
+        zi = gaussian_filter(zi, sigma=1.0)
+
+        # Create contour regions for each time interval
+        time_intervals = list(range(0, max_time + 5, 5))  # 5-minute intervals
+        contours = []
+
+        for i in range(len(time_intervals) - 1):
+            lower = time_intervals[i]
+            upper = time_intervals[i + 1]
+
+            # Create mask for current time interval
+            mask = (zi >= lower) & (zi < upper)
+
+            if not np.any(mask):
+                continue
+
+            # Convert masked grid to polygons
+            contour = np.zeros_like(zi)
+            contour[mask] = 1
+
+            # Create coordinates for the contour
+            coords = []
+            for y in range(grid_size):
+                for x in range(grid_size):
+                    if contour[y, x] == 1:
+                        coords.append([xi[x], yi[y]])
+
+            if coords:
+                # Create polygon for the time interval
+                poly = geometry.MultiPoint(coords).convex_hull
+                if poly.is_valid and not poly.is_empty:
+                    contours.append({
+                        'coordinates': [[[x, y] for x, y in poly.exterior.coords]],
+                        'time': lower
+                    })
+
+        # Add choropleth layers for each contour
+        for contour in contours:
+            fig.add_choroplethmapbox(
+                geojson={
+                    'type': 'Feature',
+                    'geometry': {
+                        'type': 'Polygon',
+                        'coordinates': contour['coordinates']
+                    }
+                },
+                z=[contour['time']],
+                locations=[0],
+                featureidkey='id',
+                colorscale=self.colorscale,
+                zmin=0,
+                zmax=max_time,
+                showscale=True if contour == contours[-1] else False,
+                colorbar=dict(
+                    title='Travel Time (minutes)',
+                    thickness=15,
+                    len=0.9,
+                    tickfont=dict(size=12),
+                    tickmode='array',
+                    tickvals=time_intervals,
+                    ticktext=[f'{i}min' for i in time_intervals]
+                ) if contour == contours[-1] else None,
+                hovertemplate=f'{contour["time"]}-{contour["time"]+5} minutes<extra></extra>',
+                marker=dict(opacity=0.7),
+            )
 
         # Add center point
         fig.add_scattermapbox(
