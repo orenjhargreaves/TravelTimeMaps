@@ -4,6 +4,7 @@ import numpy as np
 from typing import Tuple
 from scipy.interpolate import griddata
 from matplotlib.tri import Triangulation, LinearTriInterpolator
+import matplotlib.pyplot as plt
 
 class MapVisualizer:
     def __init__(self):
@@ -30,8 +31,8 @@ class MapVisualizer:
 
         fig = go.Figure()
 
-        # Create high-resolution grid for smooth interpolation
-        grid_size = 200  # Increased for better resolution
+        # Create optimized grid for interpolation
+        grid_size = 50  # Reduced for better performance
         lat_min, lat_max = data['lat'].min(), data['lat'].max()
         lng_min, lng_max = data['lng'].min(), data['lng'].max()
 
@@ -43,27 +44,15 @@ class MapVisualizer:
         lng_min -= lng_pad
         lng_max += lng_pad
 
-        # Create triangulation for better interpolation
-        triang = Triangulation(data['lng'], data['lat'])
-        interpolator = LinearTriInterpolator(triang, data['duration'])
-
-        # Create dense grid
+        # Create grid
         xi = np.linspace(lng_min, lng_max, grid_size)
         yi = np.linspace(lat_min, lat_max, grid_size)
         xi_mg, yi_mg = np.meshgrid(xi, yi)
 
-        # Interpolate values
-        zi = interpolator(xi_mg, yi_mg)
-
-        # Create mask for points too far from data
-        mask = np.zeros_like(zi, dtype=bool)
-        for i in range(len(data)):
-            x, y = data.iloc[i][['lng', 'lat']]
-            distances = np.sqrt((xi_mg - x)**2 + (yi_mg - y)**2)
-            mask |= distances < 0.01  # Adjust this value to control the interpolation extent
-
-        # Apply mask
-        zi = np.ma.masked_array(zi, ~mask)
+        # Simple interpolation
+        points = np.column_stack((data['lng'], data['lat']))
+        values = data['duration'].values
+        zi = griddata(points, values, (xi_mg, yi_mg), method='linear')
 
         # Add contour fill
         fig.add_trace(go.Contour(
@@ -71,7 +60,7 @@ class MapVisualizer:
             y=yi,
             z=zi,
             colorscale=self.colorscale,
-            opacity=0.4,
+            opacity=0.6,
             showscale=True,
             contours=dict(
                 start=0,
@@ -91,60 +80,51 @@ class MapVisualizer:
             hovertemplate='%{z:.1f} minutes<extra></extra>'
         ))
 
-        # Generate contour lines at specific intervals
+        # Add contour lines (simplified)
         contour_levels = np.arange(0, max_time + 1, 5)
-
         for level in contour_levels:
-            # Find contour lines for this level using numpy
-            contour_paths = []
-            for i in range(zi.shape[0] - 1):
-                for j in range(zi.shape[1] - 1):
-                    if not zi.mask[i, j]:
-                        # Check if we cross the contour level
-                        if (zi[i, j] <= level <= zi[i+1, j] or 
-                            zi[i+1, j] <= level <= zi[i, j] or
-                            zi[i, j] <= level <= zi[i, j+1] or
-                            zi[i, j+1] <= level <= zi[i, j]):
+            cs = plt.contour(xi_mg, yi_mg, zi, levels=[level])
+            plt.close()
 
-                            contour_paths.append({
-                                'lon': [xi[j], xi[j+1]],
-                                'lat': [yi[i], yi[i+1]]
-                            })
+            for collection in cs.collections:
+                paths = collection.get_paths()
+                for path in paths:
+                    verts = path.vertices
+                    if len(verts) > 1:
+                        # Simplify line by reducing points
+                        if len(verts) > 50:
+                            verts = verts[::len(verts)//50]
 
-            # Add contour lines to the map
-            for path in contour_paths:
-                fig.add_trace(go.Scattermapbox(
-                    lon=path['lon'],
-                    lat=path['lat'],
-                    mode='lines',
-                    line=dict(
-                        width=2,
-                        color=self._get_color_for_value(level, max_time)
-                    ),
-                    hovertemplate=f'{int(level)} minutes<extra></extra>',
-                    showlegend=False
-                ))
+                        fig.add_trace(go.Scattermapbox(
+                            lon=verts[:, 0],
+                            lat=verts[:, 1],
+                            mode='lines',
+                            line=dict(
+                                width=2,
+                                color=self._get_color_for_value(level, max_time)
+                            ),
+                            hovertemplate=f'{int(level)} minutes<extra></extra>',
+                            showlegend=False
+                        ))
 
-        # Add data points with conditional visibility
-        marker_size = 8 if show_raw_data else 4
-        opacity = 1.0 if show_raw_data else 0.3
-
-        fig.add_trace(go.Scattermapbox(
-            lat=data['lat'],
-            lon=data['lng'],
-            mode='markers+text' if show_raw_data else 'markers',
-            marker=dict(
-                size=marker_size,
-                color=data['duration'],
-                colorscale=self.colorscale,
-                opacity=opacity,
-                showscale=False
-            ),
-            text=data['duration'].apply(lambda x: f'{x:.1f}min') if show_raw_data else None,
-            textposition="top center" if show_raw_data else None,
-            hovertemplate='<b>Travel Time:</b> %{text}<extra></extra>' if show_raw_data else None,
-            showlegend=False
-        ))
+        # Add data points (optimized for performance)
+        if show_raw_data:
+            fig.add_trace(go.Scattermapbox(
+                lat=data['lat'],
+                lon=data['lng'],
+                mode='markers+text',
+                marker=dict(
+                    size=8,
+                    color=data['duration'],
+                    colorscale=self.colorscale,
+                    opacity=1.0,
+                    showscale=False
+                ),
+                text=data['duration'].apply(lambda x: f'{x:.1f}min'),
+                textposition="top center",
+                hovertemplate='<b>Travel Time:</b> %{text}<extra></extra>',
+                showlegend=False
+            ))
 
         # Add center point
         fig.add_trace(go.Scattermapbox(
@@ -160,6 +140,7 @@ class MapVisualizer:
             showlegend=False
         ))
 
+        # Update layout
         fig.update_layout(
             mapbox=dict(
                 style='carto-positron',
