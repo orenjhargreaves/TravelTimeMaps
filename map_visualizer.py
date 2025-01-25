@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 from typing import Tuple
 from scipy.interpolate import griddata
+import matplotlib.pyplot as plt
 
 class MapVisualizer:
     def __init__(self):
@@ -62,14 +63,13 @@ class MapVisualizer:
         # Add contour lines using scattermapbox
         contour_levels = np.arange(0, max_time + 1, 5)  # 5-minute intervals
 
-        for level in contour_levels:
-            # Find contour paths using matplotlib
-            import matplotlib.pyplot as plt
-            cs = plt.contour(lng_grid, lat_grid, grid_z, levels=[level])
-            plt.close()  # Close the matplotlib figure
+        # Create contour plot
+        contours = plt.contour(lng_grid, lat_grid, grid_z, levels=contour_levels)
 
-            # Convert contour paths to scattermapbox traces
-            for path in cs.collections[0].get_paths():
+        # Extract and plot each contour level
+        for level, collection in zip(contours.levels, contours.collections):
+            # Get paths from the collection
+            for path in collection.get_paths():
                 vertices = path.vertices
                 if len(vertices) > 1:  # Only add if we have a valid line
                     fig.add_trace(go.Scattermapbox(
@@ -81,9 +81,11 @@ class MapVisualizer:
                             color=f'rgb({int(255*(1-level/max_time))},0,{int(255*level/max_time)})'
                         ),
                         name=f'{int(level)} min',
-                        showlegend=False,
+                        showlegend=True,
                         hovertemplate=f'{int(level)} minutes<extra></extra>'
                     ))
+
+        plt.close()  # Close the matplotlib figure
 
         # Add data points (small and semi-transparent)
         fig.add_trace(go.Scattermapbox(
