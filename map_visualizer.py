@@ -31,7 +31,7 @@ class MapVisualizer:
         fig = go.Figure()
 
         # Create optimized grid for interpolation
-        grid_size = 40  # Further reduced for better performance
+        grid_size = 40  # Optimized for performance
         lat_min, lat_max = data['lat'].min(), data['lat'].max()
         lng_min, lng_max = data['lng'].min(), data['lng'].max()
 
@@ -53,27 +53,43 @@ class MapVisualizer:
         values = data['duration'].values
         zi = griddata(points, values, (xi_mg, yi_mg), method='linear')
 
-        # Add heatmap layer using densemap for better performance
-        fig.add_densemapbox(
-            lat=yi.flatten(),
-            lon=xi.flatten(),
-            z=zi.flatten(),
-            radius=25,
-            colorscale=self.colorscale,
-            opacity=0.6,
-            zmin=0,
-            zmax=max_time,
-            showscale=True,
-            colorbar=dict(
-                title='Travel Time (minutes)',
-                thickness=15,
-                len=0.9,
-                tickfont=dict(size=12),
-                tickmode='array',
-                tickvals=list(range(0, max_time + 1, 5)),
-                ticktext=[f'{i}min' for i in range(0, max_time + 1, 5)]
+        # Create heatmap using scattermapbox
+        heatmap_points = []
+        for i in range(grid_size):
+            for j in range(grid_size):
+                if not np.isnan(zi[i, j]):
+                    heatmap_points.append({
+                        'lat': yi[i],
+                        'lon': xi[j],
+                        'duration': zi[i, j]
+                    })
+
+        # Convert to DataFrame for easier handling
+        heatmap_df = pd.DataFrame(heatmap_points)
+
+        # Add heatmap layer
+        fig.add_scattermapbox(
+            lat=heatmap_df['lat'],
+            lon=heatmap_df['lon'],
+            mode='markers',
+            marker=dict(
+                size=15,
+                color=heatmap_df['duration'],
+                colorscale=self.colorscale,
+                opacity=0.6,
+                showscale=True,
+                colorbar=dict(
+                    title='Travel Time (minutes)',
+                    thickness=15,
+                    len=0.9,
+                    tickfont=dict(size=12),
+                    tickmode='array',
+                    tickvals=list(range(0, max_time + 1, 5)),
+                    ticktext=[f'{i}min' for i in range(0, max_time + 1, 5)]
+                )
             ),
-            hovertemplate='%{z:.1f} minutes<extra></extra>'
+            hovertemplate='%{marker.color:.1f} minutes<extra></extra>',
+            showlegend=False
         )
 
         # Add data points (optimized for performance)
@@ -120,10 +136,7 @@ class MapVisualizer:
                 style='carto-positron',
                 center=dict(lat=center[0], lon=center[1]),
                 zoom=11,
-                layers=[],
             ),
-            mapbox_center=dict(lat=center[0], lon=center[1]),
-            mapbox_zoom=11,
             dragmode='zoom',
             modebar=dict(
                 orientation='v',
