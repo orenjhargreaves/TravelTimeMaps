@@ -20,26 +20,25 @@ class MapVisualizer:
     ) -> go.Figure:
         """
         Create a contour map visualization using Plotly.
-
-        Args:
-            data: DataFrame with lat, lng, and duration columns
-            center: Tuple of (latitude, longitude) for the starting point
-            max_time: Maximum travel time in minutes
-
-        Returns:
-            Plotly Figure object
         """
+        # Validate input data
+        if data is None or data.empty:
+            raise ValueError("No travel time data available for visualization")
+
+        if not all(col in data.columns for col in ['lat', 'lng', 'duration']):
+            raise ValueError("Data must contain 'lat', 'lng', and 'duration' columns")
+
         # Create base figure
         fig = go.Figure()
 
         # Add contour scatter points
         fig.add_trace(go.Scattermapbox(
-            lat=data['lat'],
-            lon=data['lng'],
+            lat=data['lat'].values,  # Explicitly convert to numpy array
+            lon=data['lng'].values,  # Explicitly convert to numpy array
             mode='markers',
             marker=dict(
                 size=10,
-                color=data['duration'],
+                color=data['duration'].values,  # Explicitly convert to numpy array
                 colorscale=self.colorscale,
                 showscale=True,
                 colorbar=dict(

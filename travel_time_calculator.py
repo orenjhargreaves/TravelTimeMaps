@@ -8,12 +8,6 @@ class TravelTimeCalculator:
     def __init__(self, location: str, max_time: int, time_step: int, mode: str):
         """
         Initialize the calculator with location and parameters.
-
-        Args:
-            location: Starting location address or coordinates
-            max_time: Maximum travel time in minutes
-            time_step: Time interval between contours in minutes
-            mode: Transportation mode (driving, walking, bicycling, transit)
         """
         api_key = os.environ.get('GOOGLE_MAPS_API_KEY')
         if not api_key:
@@ -32,13 +26,13 @@ class TravelTimeCalculator:
         try:
             geocode_result = self.gmaps.geocode(self.location)
             if not geocode_result:
-                raise ValueError("Location not found")
+                raise ValueError(f"Location not found: {self.location}")
 
             lat = geocode_result[0]['geometry']['location']['lat']
             lng = geocode_result[0]['geometry']['location']['lng']
             return (lat, lng)
         except Exception as e:
-            raise ValueError(f"Error geocoding location: {str(e)}")
+            raise ValueError(f"Error geocoding location '{self.location}': {str(e)}")
 
     def _generate_grid_points(self, radius_km: float = 5) -> List[Tuple[float, float]]:
         """Generate a grid of points around the center location."""
@@ -57,6 +51,9 @@ class TravelTimeCalculator:
 
     def calculate_travel_times(self) -> pd.DataFrame:
         """Calculate travel times to grid points."""
+        if not self.center_location:
+            raise ValueError("Center location not set. Please check the provided address.")
+
         grid_points = self._generate_grid_points()
         results = []
 
@@ -70,7 +67,7 @@ class TravelTimeCalculator:
                     mode=self.mode
                 )
 
-                if directions:
+                if directions and directions[0].get('legs'):
                     # Extract duration in minutes
                     duration = directions[0]['legs'][0]['duration']['value'] / 60
                     results.append({
@@ -80,10 +77,13 @@ class TravelTimeCalculator:
                     })
 
             except Exception as e:
-                # Skip failed requests
+                print(f"Error calculating travel time to ({dest_lat}, {dest_lng}): {str(e)}")
                 continue
 
         # Create DataFrame with results
+        if not results:
+            raise ValueError("No valid travel times could be calculated. Please check your input parameters.")
+
         df = pd.DataFrame(results)
         self.last_result = df
         return df
