@@ -61,6 +61,30 @@ class MapVisualizer:
         # Create time intervals
         time_intervals = list(range(0, max_time + 5, 5))  # 5-minute intervals
 
+        # Add a dummy scatter trace for the colorbar
+        fig.add_scattermapbox(
+            lat=[None],
+            lon=[None],
+            mode='markers',
+            marker=dict(
+                size=0,
+                colorscale=self.colorscale,
+                showscale=True,
+                cmin=0,
+                cmax=max_time,
+                colorbar=dict(
+                    title='Travel Time (minutes)',
+                    tickmode='array',
+                    tickvals=time_intervals,
+                    ticktext=[f'{i}min' for i in time_intervals],
+                    thickness=15,
+                    len=0.9,
+                    x=0.98
+                )
+            ),
+            showlegend=False,
+        )
+
         # Create filled contours for each time interval
         for i in range(len(time_intervals) - 1, -1, -1):  # Reverse order to layer properly
             lower = time_intervals[i]
@@ -110,9 +134,10 @@ class MapVisualizer:
                             fill='toself',
                             fillcolor=color,
                             line=dict(width=0),
-                            opacity=0.5,
+                            opacity=0.35,  # Reduced opacity to see map better
                             showlegend=False,
-                            hoverinfo='skip',
+                            hoverinfo='text',
+                            hovertext=f'{lower}-{upper} minutes',
                             name=f'{lower}-{upper} min'
                         )
 
@@ -144,13 +169,7 @@ class MapVisualizer:
                     size=5,
                     color=data['duration'],
                     colorscale=self.colorscale,
-                    showscale=True,
-                    colorbar=dict(
-                        title='Travel Time (minutes)',
-                        tickmode='array',
-                        tickvals=time_intervals,
-                        ticktext=[f'{i}min' for i in time_intervals]
-                    )
+                    showscale=False
                 ),
                 text=data['duration'].apply(lambda x: f'{x:.1f} min'),
                 hoverinfo='text',
