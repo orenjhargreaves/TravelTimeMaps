@@ -32,7 +32,35 @@ class TravelTimeCalculator:
             lng = geocode_result[0]['geometry']['location']['lng']
             return (lat, lng)
         except Exception as e:
+            if 'REQUEST_DENIED' in str(e):
+                raise ValueError(
+                    "Access to Google Maps API was denied. Please ensure you have:\n"
+                    "1. Enabled the Geocoding API in your Google Cloud Console\n"
+                    "2. Enabled the Directions API in your Google Cloud Console\n"
+                    "3. Properly configured your API key with access to these services"
+                )
             raise ValueError(f"Error geocoding location '{self.location}': {str(e)}")
+
+    def _verify_api_access(self):
+        """Verify API access with a test request"""
+        try:
+            # Make a test request
+            test_directions = self.gmaps.directions(
+                self.center_location,
+                self.center_location,  # Same point for test
+                mode=self.mode
+            )
+            if not test_directions:
+                raise ValueError("Could not get directions data from Google Maps API")
+        except Exception as e:
+            if 'REQUEST_DENIED' in str(e):
+                raise ValueError(
+                    "Access to Google Maps API was denied. Please ensure you have:\n"
+                    "1. Enabled the Directions API in your Google Cloud Console\n"
+                    "2. Properly configured your API key with access to these services\n"
+                    "3. Enabled billing for your Google Cloud project"
+                )
+            raise
 
     def _generate_grid_points(self, radius_km: float = 5) -> List[Tuple[float, float]]:
         """Generate a grid of points around the center location."""
@@ -53,6 +81,9 @@ class TravelTimeCalculator:
         """Calculate travel times to grid points."""
         if not self.center_location:
             raise ValueError("Center location not set. Please check the provided address.")
+
+        # Verify API access before making multiple requests
+        self._verify_api_access()
 
         grid_points = self._generate_grid_points()
         results = []
@@ -77,12 +108,25 @@ class TravelTimeCalculator:
                     })
 
             except Exception as e:
+                if 'REQUEST_DENIED' in str(e):
+                    raise ValueError(
+                        "Access to Google Maps API was denied. Please ensure you have:\n"
+                        "1. Enabled the Directions API in your Google Cloud Console\n"
+                        "2. Properly configured your API key with access to these services\n"
+                        "3. Enabled billing for your Google Cloud project"
+                    )
                 print(f"Error calculating travel time to ({dest_lat}, {dest_lng}): {str(e)}")
                 continue
 
         # Create DataFrame with results
         if not results:
-            raise ValueError("No valid travel times could be calculated. Please check your input parameters.")
+            raise ValueError(
+                "No valid travel times could be calculated. This might be because:\n"
+                "1. The API key doesn't have access to the Directions API\n"
+                "2. The selected mode of transport is not available in this area\n"
+                "3. The destination points are not reachable\n"
+                "Please check your API key configuration and input parameters."
+            )
 
         df = pd.DataFrame(results)
         self.last_result = df
