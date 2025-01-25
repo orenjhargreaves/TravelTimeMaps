@@ -65,11 +65,15 @@ class MapVisualizer:
                 end=max_time,
                 size=5,
                 coloring='fill',
-                showlines=True,
-                line=dict(
-                    width=2,
-                    color='rgba(0,0,0,0.5)'
+                showlabels=True,
+                labelfont=dict(
+                    size=12,
+                    color='white'
                 )
+            ),
+            line=dict(
+                width=2,
+                color='rgba(0,0,0,0.5)'
             ),
             colorbar=dict(
                 title='Travel Time (minutes)',
