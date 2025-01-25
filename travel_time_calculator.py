@@ -145,53 +145,59 @@ class TravelTimeCalculator:
 
         return points
 
-    def _process_point(self, point: Tuple[float, float]) -> Dict:
-        """Process a single point and return its travel time data."""
-        dest_lat, dest_lng = point
-        try:
-            directions = self._get_cached_directions(
-                self.center_location[0],
-                self.center_location[1],
-                dest_lat,
-                dest_lng,
-                self.mode
-            )
+    def _process_batch(self, points: List[Tuple[float, float]], batch_size: int = 25) -> List[Dict]:
+        """Process a batch of points and return their travel time data."""
+        results = []
 
-            if directions and directions[0].get('legs'):
-                leg = directions[0]['legs'][0]
-                duration = leg['duration']['value'] / 60
-                actual_end_location = leg['end_location']
+        # Process points in batches
+        for i in range(0, len(points), batch_size):
+            batch = points[i:i + batch_size]
+            batch_results = []
 
-                return {
-                    'lat': actual_end_location['lat'],
-                    'lng': actual_end_location['lng'],
-                    'duration': duration
-                }
+            # Create batch request
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                futures = []
+                for dest_lat, dest_lng in batch:
+                    futures.append(
+                        executor.submit(
+                            self._get_cached_directions,
+                            self.center_location[0],
+                            self.center_location[1],
+                            dest_lat,
+                            dest_lng,
+                            self.mode
+                        )
+                    )
 
-            return None
-        except Exception as e:
-            print(f"Error calculating travel time to ({dest_lat}, {dest_lng}). Full error: {str(e)}")
-            return None
+                # Collect results as they complete
+                for future, (dest_lat, dest_lng) in zip(futures, batch):
+                    try:
+                        directions = future.result()
+                        if directions and directions[0].get('legs'):
+                            leg = directions[0]['legs'][0]
+                            duration = leg['duration']['value'] / 60
+                            actual_end_location = leg['end_location']
+
+                            batch_results.append({
+                                'lat': actual_end_location['lat'],
+                                'lng': actual_end_location['lng'],
+                                'duration': duration
+                            })
+                    except Exception as e:
+                        print(f"Error calculating travel time to ({dest_lat}, {dest_lng}): {str(e)}")
+
+            results.extend(batch_results)
+
+        return results
 
     def calculate_travel_times(self) -> pd.DataFrame:
-        """Calculate travel times to grid points using parallel processing."""
+        """Calculate travel times to grid points using batch processing."""
         if not self.center_location:
             raise ValueError("Center location not set. Please check the provided address.")
 
         self._verify_api_access()
         points = self._generate_radial_points()
-        results = []
-
-        # Use ThreadPoolExecutor for parallel processing
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            # Submit all points for processing
-            future_to_point = {executor.submit(self._process_point, point): point for point in points}
-
-            # Collect results as they complete
-            for future in as_completed(future_to_point):
-                result = future.result()
-                if result:
-                    results.append(result)
+        results = self._process_batch(points)
 
         if not results:
             raise ValueError(
