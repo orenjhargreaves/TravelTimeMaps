@@ -144,7 +144,7 @@ class MapVisualizer:
                 style='carto-positron',
                 center=dict(lat=center[0], lon=center[1]),
                 zoom=11,
-                scrollZoom=True  # Enable scroll zooming with correct property name
+                scrollzoom=True  # Correct property name for scroll zooming
             ),
             dragmode='zoom',
             modebar=dict(
