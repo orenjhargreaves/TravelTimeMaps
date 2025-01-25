@@ -10,6 +10,7 @@ from functools import lru_cache
 import threading
 from queue import Queue
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm import tqdm
 
 class TravelTimeCalculator:
     def __init__(self, location: str, max_time: int, time_step: int, mode: str, radius_km: float = 5, point_spacing_meters: float = 500):
@@ -114,7 +115,6 @@ class TravelTimeCalculator:
                     "3. Enabled billing for your Google Cloud project"
                 )
             raise
-
     def _generate_radial_points(self) -> List[Tuple[float, float]]:
         """Generate points with specified spacing around the center location."""
         lat, lng = self.center_location
@@ -163,8 +163,10 @@ class TravelTimeCalculator:
         """Process a batch of points and return their travel time data."""
         results = []
 
-        # Process points in batches
-        for i in range(0, len(points), batch_size):
+        # Process points in batches with progress bar
+        progress_bar = tqdm(range(0, len(points), batch_size), desc="Processing points", unit="batch")
+
+        for i in progress_bar:
             batch = points[i:i + batch_size]
             batch_results = []
 
@@ -201,6 +203,7 @@ class TravelTimeCalculator:
                         print(f"Error calculating travel time to ({dest_lat}, {dest_lng}): {str(e)}")
 
             results.extend(batch_results)
+            progress_bar.set_postfix({"points_processed": len(results)})
 
         return results
 
@@ -210,7 +213,10 @@ class TravelTimeCalculator:
             raise ValueError("Center location not set. Please check the provided address.")
 
         self._verify_api_access()
+        print("Generating sampling points...")
         points = self._generate_radial_points()
+        print(f"Generated {len(points)} points for analysis")
+
         results = self._process_batch(points)
 
         if not results:
