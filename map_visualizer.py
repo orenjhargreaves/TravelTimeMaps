@@ -92,7 +92,7 @@ class MapVisualizer:
                 len=0.9,
                 tickfont=dict(size=12)
             ),
-            hoverongaps=False,
+            hovertemplate='Travel Time: %{z:.1f} minutes<extra></extra>',
             name='Travel Time Contours'
         ))
 
