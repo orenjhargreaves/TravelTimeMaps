@@ -5,6 +5,7 @@ import numpy as np
 from typing import Tuple
 from scipy.interpolate import griddata
 import matplotlib.pyplot as plt
+import math
 
 class MapVisualizer:
     def __init__(self):
@@ -67,12 +68,12 @@ class MapVisualizer:
         lng_grid = np.linspace(lng_min, lng_max, grid_size)
         lat_mesh, lng_mesh = np.meshgrid(lat_grid, lng_grid)
 
-        # Interpolate the data
+        # Interpolate the data using linear interpolation to prevent unrealistic islands
         grid_z = griddata(
             (data['lat'], data['lng']), 
             data['duration'],
             (lat_mesh, lng_mesh),
-            method='cubic',
+            method='linear',  # Changed from cubic to linear
             fill_value=max_time
         )
 
@@ -112,15 +113,33 @@ class MapVisualizer:
                     label_indices = np.linspace(0, len(segment)-1, num_labels, dtype=int)
 
                     for idx in label_indices:
-                        fig.add_trace(go.Scattermapbox(
-                            lon=[segment[idx, 0]],
-                            lat=[segment[idx, 1]],
-                            mode='text',
-                            text=[f'{int(level)}min'],
-                            textfont=dict(size=12, color=level_color),
-                            showlegend=False,
-                            hoverinfo='none'
-                        ))
+                        # Calculate label offset perpendicular to the contour
+                        if idx > 0:  # Skip first point if we can't calculate direction
+                            # Calculate direction vector of the contour
+                            dx = segment[idx, 0] - segment[idx-1, 0]
+                            dy = segment[idx, 1] - segment[idx-1, 1]
+                            # Normalize and rotate 90 degrees for perpendicular offset
+                            length = math.sqrt(dx*dx + dy*dy)
+                            if length > 0:
+                                # Offset by 0.0003 degrees (roughly 30 meters)
+                                offset_x = -dy/length * 0.0003
+                                offset_y = dx/length * 0.0003
+                                # Calculate angle for text rotation
+                                angle = math.degrees(math.atan2(dy, dx))
+
+                                fig.add_trace(go.Scattermapbox(
+                                    lon=[segment[idx, 0] + offset_x],
+                                    lat=[segment[idx, 1] + offset_y],
+                                    mode='text',
+                                    text=[f'{int(level)}min'],
+                                    textfont=dict(
+                                        size=12,
+                                        color=level_color
+                                    ),
+                                    textangle=angle,  # Rotate text to follow contour
+                                    showlegend=False,
+                                    hoverinfo='none'
+                                ))
 
         # Add data points (small and semi-transparent)
         fig.add_trace(go.Scattermapbox(

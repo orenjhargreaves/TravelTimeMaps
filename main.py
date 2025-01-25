@@ -27,7 +27,7 @@ with st.sidebar:
     # Location input
     location = st.text_input(
         "Starting Location",
-        "New York, NY",
+        "Buckingham Palace, London",
         help="Enter an address or landmark"
     )
 
@@ -35,7 +35,7 @@ with st.sidebar:
     radius_km = st.slider(
         "Maximum Travel Distance (km)",
         1,
-        20,
+        50,  # Increased from 20 to 50
         5,
         step=1,
         help="Maximum radius to analyze around the starting point"
@@ -43,19 +43,20 @@ with st.sidebar:
 
     point_density = st.slider(
         "Point Density",
-        8,
-        64,
+        16,
+        128,  # Increased from 64 to 128
         32,
-        step=8,
+        step=16,
         help="Number of points per circle (higher values give more detailed results)"
     )
 
     # Transportation mode
     mode = st.selectbox(
         "Transportation Mode",
-        ["driving", "walking", "bicycling"],  # Removed transit temporarily
-        index=0
-    )
+        ["Driving", "Walking", "Cycling"],  # Updated labels
+        index=0,
+        format_func=lambda x: x  # Ensures proper case display
+    ).lower()  # Convert to lowercase for API
 
     # Calculate button
     calculate = st.button("Calculate Contours")
@@ -67,7 +68,7 @@ try:
             # Initialize calculator and visualizer with new parameters
             calculator = TravelTimeCalculator(
                 location=location,
-                max_time=60,  # Fixed value since we're using distance-based control
+                max_time=60,
                 time_step=5,
                 mode=mode,
                 radius_km=radius_km,
