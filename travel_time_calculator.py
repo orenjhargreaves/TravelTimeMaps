@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from typing import Tuple, List, Dict
 import os
+import json
 
 class TravelTimeCalculator:
     def __init__(self, location: str, max_time: int, time_step: int, mode: str):
@@ -24,15 +25,20 @@ class TravelTimeCalculator:
     def _geocode_location(self) -> Tuple[float, float]:
         """Convert location string to coordinates."""
         try:
+            print(f"Geocoding location: {self.location}")
             geocode_result = self.gmaps.geocode(self.location)
+            print(f"Geocoding response: {json.dumps(geocode_result, indent=2)}")
+
             if not geocode_result:
                 raise ValueError(f"Location not found: {self.location}")
 
             lat = geocode_result[0]['geometry']['location']['lat']
             lng = geocode_result[0]['geometry']['location']['lng']
+            print(f"Successfully geocoded to: {lat}, {lng}")
             return (lat, lng)
         except Exception as e:
             if 'REQUEST_DENIED' in str(e):
+                print(f"Full error response: {str(e)}")
                 raise ValueError(
                     "Access to Google Maps API was denied. Please ensure you have:\n"
                     "1. Enabled the Geocoding API in your Google Cloud Console\n"
@@ -44,15 +50,19 @@ class TravelTimeCalculator:
     def _verify_api_access(self):
         """Verify API access with a test request"""
         try:
-            # Make a test request
+            print(f"Verifying API access with mode: {self.mode}")
             test_directions = self.gmaps.directions(
                 self.center_location,
                 self.center_location,  # Same point for test
                 mode=self.mode
             )
+            print(f"Test directions response: {json.dumps(test_directions, indent=2)}")
+
             if not test_directions:
                 raise ValueError("Could not get directions data from Google Maps API")
+            print("API access verification successful")
         except Exception as e:
+            print(f"API verification failed. Full error: {str(e)}")
             if 'REQUEST_DENIED' in str(e):
                 raise ValueError(
                     "Access to Google Maps API was denied. Please ensure you have:\n"
@@ -87,16 +97,18 @@ class TravelTimeCalculator:
 
         grid_points = self._generate_grid_points()
         results = []
+        error_count = 0
 
         # Calculate travel times in batches
         for dest_lat, dest_lng in grid_points:
             try:
-                # Get directions from Google Maps
+                print(f"Requesting directions to: ({dest_lat}, {dest_lng})")
                 directions = self.gmaps.directions(
                     self.center_location,
                     (dest_lat, dest_lng),
                     mode=self.mode
                 )
+                print(f"Received directions response: {json.dumps(directions, indent=2)}")
 
                 if directions and directions[0].get('legs'):
                     # Extract duration in minutes
@@ -106,8 +118,14 @@ class TravelTimeCalculator:
                         'lng': dest_lng,
                         'duration': duration
                     })
+                    print(f"Successfully calculated duration: {duration} minutes")
+                else:
+                    print(f"No valid route found for destination: ({dest_lat}, {dest_lng})")
+                    error_count += 1
 
             except Exception as e:
+                error_count += 1
+                print(f"Error calculating travel time to ({dest_lat}, {dest_lng}). Full error: {str(e)}")
                 if 'REQUEST_DENIED' in str(e):
                     raise ValueError(
                         "Access to Google Maps API was denied. Please ensure you have:\n"
@@ -115,11 +133,11 @@ class TravelTimeCalculator:
                         "2. Properly configured your API key with access to these services\n"
                         "3. Enabled billing for your Google Cloud project"
                     )
-                print(f"Error calculating travel time to ({dest_lat}, {dest_lng}): {str(e)}")
                 continue
 
         # Create DataFrame with results
         if not results:
+            print(f"No successful results out of {len(grid_points)} attempts. Error count: {error_count}")
             raise ValueError(
                 "No valid travel times could be calculated. This might be because:\n"
                 "1. The API key doesn't have access to the Directions API\n"
@@ -128,6 +146,7 @@ class TravelTimeCalculator:
                 "Please check your API key configuration and input parameters."
             )
 
+        print(f"Successfully calculated {len(results)} travel times out of {len(grid_points)} attempts")
         df = pd.DataFrame(results)
         self.last_result = df
         return df
