@@ -5,8 +5,6 @@ from typing import Tuple
 from scipy.interpolate import griddata
 from scipy.ndimage import gaussian_filter
 import shapely.geometry as geometry
-from shapely.ops import unary_union
-import geopandas as gpd
 
 class MapVisualizer:
     def __init__(self):
@@ -60,80 +58,67 @@ class MapVisualizer:
         # Smooth the interpolated data
         zi = gaussian_filter(zi, sigma=1.0)
 
-        # Create contour regions for each time interval
+        # Create time intervals
         time_intervals = list(range(0, max_time + 5, 5))  # 5-minute intervals
-        contours = []
 
-        for i in range(len(time_intervals) - 1):
+        # Create filled contours for each time interval
+        for i in range(len(time_intervals) - 1, -1, -1):  # Reverse order to layer properly
             lower = time_intervals[i]
-            upper = time_intervals[i + 1]
+            upper = time_intervals[i + 1] if i < len(time_intervals) - 1 else max_time
 
             # Create mask for current time interval
             mask = (zi >= lower) & (zi < upper)
-
             if not np.any(mask):
                 continue
 
-            # Create coordinates for the contour
+            # Find contour paths
             coords = []
             for y in range(grid_size):
                 for x in range(grid_size):
-                    if mask[y, x]: # Corrected condition here
-                        # Swap x,y to lng,lat for geojson format
+                    if mask[y, x]:
                         coords.append((xi[x], yi[y]))
 
             if coords:
                 try:
-                    # Create polygon for the time interval
+                    # Create polygon
                     poly = geometry.MultiPoint(coords).convex_hull
                     if poly.is_valid and not poly.is_empty:
-                        # Extract coordinates in the correct format for geojson
-                        coord_list = [[[lng, lat] for lat, lng in poly.exterior.coords]]
-                        contours.append({
-                            'type': 'Feature',
-                            'geometry': {
-                                'type': 'Polygon',
-                                'coordinates': coord_list
-                            },
-                            'properties': {
-                                'time': lower
-                            }
-                        })
+                        # Extract coordinates
+                        path_coords = list(poly.exterior.coords)
+
+                        # Calculate color based on time interval
+                        color_val = lower / max_time
+                        if color_val <= 0:
+                            color = 'rgb(0,255,0)'
+                        elif color_val >= 1:
+                            color = 'rgb(255,0,0)'
+                        else:
+                            if color_val <= 0.5:
+                                g = 255
+                                r = int(510 * color_val)
+                                color = f'rgb({r},{g},0)'
+                            else:
+                                r = 255
+                                g = int(510 * (1 - color_val))
+                                color = f'rgb({r},{g},0)'
+
+                        # Add filled path
+                        fig.add_scattermapbox(
+                            lat=[p[1] for p in path_coords],
+                            lon=[p[0] for p in path_coords],
+                            mode='lines',
+                            fill='toself',
+                            fillcolor=color,
+                            line=dict(width=0),
+                            opacity=0.5,
+                            showlegend=False,
+                            hoverinfo='skip',
+                            name=f'{lower}-{upper} min'
+                        )
+
                 except Exception as e:
                     print(f"Error creating polygon for time interval {lower}-{upper}: {str(e)}")
                     continue
-
-        if not contours:
-            raise ValueError("No valid contours could be created from the data")
-
-        # Create a FeatureCollection
-        geojson_data = {
-            'type': 'FeatureCollection',
-            'features': contours
-        }
-
-        # Add choropleth layer
-        fig.add_choroplethmapbox(
-            geojson=geojson_data,
-            locations=[f.get('properties', {}).get('time') for f in contours],
-            z=[f.get('properties', {}).get('time') for f in contours],
-            featureidkey='properties.time',
-            colorscale=self.colorscale,
-            zmin=0,
-            zmax=max_time,
-            showscale=True,
-            colorbar=dict(
-                title='Travel Time (minutes)',
-                thickness=15,
-                len=0.9,
-                tickfont=dict(size=12),
-                tickmode='array',
-                tickvals=time_intervals,
-                ticktext=[f'{i}min' for i in time_intervals]
-            ),
-            hovertemplate='%{z} minutes<extra></extra>',
-            marker=dict(opacity=0.7),
-        )
 
         # Add center point
         fig.add_scattermapbox(
@@ -151,46 +136,37 @@ class MapVisualizer:
 
         # Add data points if requested
         if show_raw_data:
-            # Subsample points if there are too many
-            max_points = 200
-            if len(data) > max_points:
-                data = data.sample(n=max_points)
-
             fig.add_scattermapbox(
                 lat=data['lat'],
                 lon=data['lng'],
                 mode='markers',
                 marker=dict(
-                    size=8,
+                    size=5,
                     color=data['duration'],
                     colorscale=self.colorscale,
-                    showscale=False
+                    showscale=True,
+                    colorbar=dict(
+                        title='Travel Time (minutes)',
+                        tickmode='array',
+                        tickvals=time_intervals,
+                        ticktext=[f'{i}min' for i in time_intervals]
+                    )
                 ),
-                text=data['duration'].apply(lambda x: f'{x:.1f}min'),
-                hovertemplate='<b>Travel Time:</b> %{text}<extra></extra>',
+                text=data['duration'].apply(lambda x: f'{x:.1f} min'),
+                hoverinfo='text',
                 showlegend=False
             )
 
-        # Update layout with proper configuration
+        # Update layout
         fig.update_layout(
             mapbox=dict(
                 style='carto-positron',
                 center=dict(lat=center[0], lon=center[1]),
                 zoom=11
             ),
-            dragmode='zoom',
-            modebar=dict(
-                orientation='v',
-                bgcolor='white',
-                color='black',
-                activecolor='blue'
-            ),
-            modebar_add=['zoom', 'pan', 'reset-view'],
             height=800,
             showlegend=False,
-            margin=dict(l=0, r=0, t=30, b=0),
-            paper_bgcolor='white',
-            plot_bgcolor='white'
+            margin=dict(l=0, r=0, t=30, b=0)
         )
 
         return fig
