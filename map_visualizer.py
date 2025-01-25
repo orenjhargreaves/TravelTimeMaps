@@ -74,55 +74,66 @@ class MapVisualizer:
             if not np.any(mask):
                 continue
 
-            # Convert masked grid to polygons
-            contour = np.zeros_like(zi)
-            contour[mask] = 1
-
             # Create coordinates for the contour
             coords = []
             for y in range(grid_size):
                 for x in range(grid_size):
-                    if contour[y, x] == 1:
-                        coords.append([xi[x], yi[y]])
+                    if mask[y, x]: # Corrected condition here
+                        # Swap x,y to lng,lat for geojson format
+                        coords.append((xi[x], yi[y]))
 
             if coords:
-                # Create polygon for the time interval
-                poly = geometry.MultiPoint(coords).convex_hull
-                if poly.is_valid and not poly.is_empty:
-                    contours.append({
-                        'coordinates': [[[x, y] for x, y in poly.exterior.coords]],
-                        'time': lower
-                    })
+                try:
+                    # Create polygon for the time interval
+                    poly = geometry.MultiPoint(coords).convex_hull
+                    if poly.is_valid and not poly.is_empty:
+                        # Extract coordinates in the correct format for geojson
+                        coord_list = [[[lng, lat] for lat, lng in poly.exterior.coords]]
+                        contours.append({
+                            'type': 'Feature',
+                            'geometry': {
+                                'type': 'Polygon',
+                                'coordinates': coord_list
+                            },
+                            'properties': {
+                                'time': lower
+                            }
+                        })
+                except Exception as e:
+                    print(f"Error creating polygon for time interval {lower}-{upper}: {str(e)}")
+                    continue
 
-        # Add choropleth layers for each contour
-        for contour in contours:
-            fig.add_choroplethmapbox(
-                geojson={
-                    'type': 'Feature',
-                    'geometry': {
-                        'type': 'Polygon',
-                        'coordinates': contour['coordinates']
-                    }
-                },
-                z=[contour['time']],
-                locations=[0],
-                featureidkey='id',
-                colorscale=self.colorscale,
-                zmin=0,
-                zmax=max_time,
-                showscale=True if contour == contours[-1] else False,
-                colorbar=dict(
-                    title='Travel Time (minutes)',
-                    thickness=15,
-                    len=0.9,
-                    tickfont=dict(size=12),
-                    tickmode='array',
-                    tickvals=time_intervals,
-                    ticktext=[f'{i}min' for i in time_intervals]
-                ) if contour == contours[-1] else None,
-                hovertemplate=f'{contour["time"]}-{contour["time"]+5} minutes<extra></extra>',
-                marker=dict(opacity=0.7),
-            )
+        if not contours:
+            raise ValueError("No valid contours could be created from the data")
+
+        # Create a FeatureCollection
+        geojson_data = {
+            'type': 'FeatureCollection',
+            'features': contours
+        }
+
+        # Add choropleth layer
+        fig.add_choroplethmapbox(
+            geojson=geojson_data,
+            locations=[f.get('properties', {}).get('time') for f in contours],
+            z=[f.get('properties', {}).get('time') for f in contours],
+            featureidkey='properties.time',
+            colorscale=self.colorscale,
+            zmin=0,
+            zmax=max_time,
+            showscale=True,
+            colorbar=dict(
+                title='Travel Time (minutes)',
+                thickness=15,
+                len=0.9,
+                tickfont=dict(size=12),
+                tickmode='array',
+                tickvals=time_intervals,
+                ticktext=[f'{i}min' for i in time_intervals]
+            ),
+            hovertemplate='%{z} minutes<extra></extra>',
+            marker=dict(opacity=0.7),
+        )
 
         # Add center point
         fig.add_scattermapbox(
