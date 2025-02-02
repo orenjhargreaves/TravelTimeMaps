@@ -122,26 +122,24 @@ try:
         mode = selected_mode
         settings = mode_settings[mode]
         calculator = TravelTimeCalculator(location=location,
-                                          max_time=settings["max_time"],
-                                          mode=settings["api_mode"],
-                                          interval=settings["interval"],
-                                          use_geoapify=use_geoapify)
+                                        max_time=settings["max_time"],
+                                        mode=settings["api_mode"],
+                                        interval=settings["interval"],
+                                        use_geoapify=use_geoapify)
 
-            base_progress = i / total_calculations
-            progress_step = 1 / total_calculations
+        base_progress = 0  # Since we only have one calculation
+        progress_step = 1
 
-            def mode_progress(message, percentage=None):
-                if percentage is not None:
-                    progress_bar.progress(base_progress +
-                                          (percentage * progress_step))
-                progress_text.text(f"{mode}: {message}")
+        def mode_progress(message, percentage=None):
+            if percentage is not None:
+                progress_bar.progress(base_progress +
+                                    (percentage * progress_step))
+            progress_text.text(f"{mode}: {message}")
 
-            results = calculator.calculate_travel_times(
-                progress_callback=mode_progress)
-            new_results.append((mode, results, settings["max_time"]))
-
-            if i == 0:
-                st.session_state.center_location = calculator.center_location
+        results = calculator.calculate_travel_times(
+            progress_callback=mode_progress)
+        new_results.append((mode, results, settings["max_time"]))
+        st.session_state.center_location = calculator.center_location
 
         st.session_state.stored_results.extend(new_results)
 
