@@ -26,6 +26,12 @@ class MapVisualizer:
         }
 
         # Get custom color if set
+        # Default mode colors if no custom color is selected
+        if mode not in mode_color_ranges:
+            return f'rgba(128,128,128,{base_opacity})'
+        
+        start_color, end_color = mode_color_ranges[mode]
+        
         try:
             color_index = next((i for i, (m, _, t) in enumerate(self.results) if m == mode and t == max_time), 0)
             if f"color_{color_index}" in st.session_state:
@@ -39,11 +45,8 @@ class MapVisualizer:
                         "Purple": ((230, 190, 255), (128, 0, 128))
                     }
                     start_color, end_color = color_options[selected_color]
-                    return f'rgba({start_color[0]},{start_color[1]},{start_color[2]},{base_opacity})'
         except Exception:
-            if mode not in mode_color_ranges:
-                return f'rgba(128,128,128,{base_opacity})'
-            start_color, end_color = mode_color_ranges[mode]
+            pass  # Use default mode colors if there's an error
         progress = time / max_time
 
         # Interpolate between colors
