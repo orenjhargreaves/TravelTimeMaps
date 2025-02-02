@@ -85,10 +85,13 @@ with st.sidebar:
     # Calculate button
     calculate = st.button("Add Contour")
 
+# Create placeholders for the interface elements
+map_placeholder = st.empty()
+
 # Map container
 map_col1, map_col2 = st.columns([4, 1])
 with map_col1:
-    map_placeholder.empty()
+    map_container = map_placeholder.container()
 
 with map_col2:
     map_style = st.radio("Map Style", ["Standard", "Washed out"],
@@ -103,8 +106,7 @@ if 'mode_settings' not in st.session_state:
                 st.session_state.stored_results.pop(idx)
                 st.experimental_rerun()
 
-# Create placeholders for the interface elements
-map_placeholder = st.empty()
+# Create progress container
 progress_container = st.container()
 with progress_container:
     progress_bar = st.progress(0)
