@@ -112,15 +112,12 @@ with st.sidebar:
             selected_color = st.selectbox(
                 "Contour Color",
                 options=list(color_options.keys()),
-                key=f"color_{idx}"
+                key=f"color_{idx}",
+                value=contour.color
             )
             
-            # Store the color selection in session state
-            if f"color_choice_{idx}" not in st.session_state:
-                st.session_state[f"color_choice_{idx}"] = selected_color
-
-            if selected_color != st.session_state[f"color_choice_{idx}"]:
-                st.session_state[f"color_choice_{idx}"] = selected_color
+            if selected_color != contour.color:
+                contour.update_color(selected_color)
                 st.rerun()
 
             if st.button("Delete Contour", key=f"delete_{idx}"):
