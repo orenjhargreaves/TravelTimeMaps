@@ -24,7 +24,7 @@ st.title("Travel Time Contour Map")
 
 # Sidebar controls
 with st.sidebar:
-    st.header("Settings")
+    st.header("Contours")
 
     # Transportation mode mapping
     available_modes = {
@@ -36,8 +36,13 @@ with st.sidebar:
         "Bus": ("bus", True)
     }
 
+    # Count occurrences of each mode
+    mode_counts = {}
+    for mode, _, _ in st.session_state.stored_results:
+        mode_counts[mode] = mode_counts.get(mode, 0) + 1
+
     # Create tabs for new contour and existing contours
-    tabs = ["New Contour"] + [f"Contour {i+1}" for i in range(len(st.session_state.stored_results))]
+    tabs = ["+"] + [f"{result[0]} {mode_counts[result[0]]}" for result in st.session_state.stored_results]
     current_tab = st.tabs(tabs)
 
     with current_tab[0]:
@@ -89,6 +94,7 @@ with st.sidebar:
             st.text(f"Location: {st.session_state.location}")
             st.text(f"Mode: {stored_result[0]}")
             st.text(f"Maximum Time: {stored_result[2]} minutes")
+            st.text(f"Time Interval: {interval} minutes")
 
             if st.button("Delete Contour", key=f"delete_{idx}"):
                 st.session_state.stored_results.pop(idx)
