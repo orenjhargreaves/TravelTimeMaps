@@ -25,7 +25,9 @@ class MapVisualizer:
         }
 
         # Get custom color if set
-        color_key = f"color_choice_{self.results.index((mode, None, max_time))}"
+        try:
+            color_index = next((i for i, (m, _, t) in enumerate(self.results) if m == mode and t == max_time), 0)
+            color_key = f"color_choice_{color_index}"
         if hasattr(st.session_state, color_key) and st.session_state[color_key] != "Default":
             color_options = {
                 "Blue": ((135, 206, 235), (0, 0, 139)),
