@@ -77,7 +77,7 @@ class MapVisualizer:
                         x=1.02 + offset,  # Stack horizontally
                         y=0.15,  # Lower base position
                         yanchor='bottom',  # Anchor at bottom
-                        len=0.75,  # Keep consistent length
+                        len=0.75 * (time / 60),  # Scale length by time
                         thickness=20,
                         orientation='v',
                         bgcolor='rgba(255,255,255,0.9)',
