@@ -43,6 +43,10 @@ with st.sidebar:
         mode_counts[mode] = mode_counts.get(mode, 0) + 1
         mode_indices.append(mode_counts[mode])
 
+    # Store contour information when created
+    if "contour_info" not in st.session_state:
+        st.session_state.contour_info = []
+
     # Create tabs for new contour and existing contours
     tabs = ["New"] + [f"{result[0]} {idx}" for result, idx in zip(st.session_state.stored_results, mode_indices)]
     current_tab = st.tabs(tabs)
@@ -86,6 +90,10 @@ with st.sidebar:
             results = calculator.calculate_travel_times()
             st.session_state.center_location = calculator.center_location
             st.session_state.stored_results.append((selected_mode, results, max_time))
+            st.session_state.contour_info.append({
+                "location": st.session_state.new_location,
+                "interval": interval
+            })
             st.rerun()
 
     # Display existing contour information in tabs
@@ -93,10 +101,11 @@ with st.sidebar:
         with tab:
             stored_result = st.session_state.stored_results[idx]
             st.markdown("### Contour Information")
-            st.text(f"Location: {st.session_state.location}")
+            contour_info = st.session_state.contour_info[idx]
+            st.text(f"Location: {contour_info['location']}")
             st.text(f"Mode: {stored_result[0]}")
             st.text(f"Maximum Time: {stored_result[2]} minutes")
-            st.text(f"Time Interval: {interval} minutes")
+            st.text(f"Time Interval: {contour_info['interval']} minutes")
 
             # Color selection
             color_options = {
