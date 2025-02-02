@@ -121,11 +121,11 @@ try:
         total_calculations = 1  # Only one mode at a time
         mode = selected_mode
         settings = mode_settings[mode]
-            calculator = TravelTimeCalculator(location=location,
-                                              max_time=settings["max_time"],
-                                              mode=settings["api_mode"],
-                                              interval=settings["interval"],
-                                              use_geoapify=use_geoapify)
+        calculator = TravelTimeCalculator(location=location,
+                                          max_time=settings["max_time"],
+                                          mode=settings["api_mode"],
+                                          interval=settings["interval"],
+                                          use_geoapify=use_geoapify)
 
             base_progress = i / total_calculations
             progress_step = 1 / total_calculations
