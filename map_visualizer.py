@@ -79,8 +79,7 @@ class MapVisualizer:
                         y=0.02,  # Position at bottom
                         orientation='h',  # Horizontal orientation
                         bgcolor='rgba(255,255,255,0.8)',
-                        tickfont=dict(size=10),
-                        title_standoff=5
+                        tickfont=dict(size=10)
                     )
                 ),
                 name=mode,
