@@ -118,9 +118,9 @@ try:
 
     if calculate:
         new_results = []
-        total_calculations = len(selected_modes)
-        for i, mode in enumerate(selected_modes):
-            settings = mode_settings[mode]
+        total_calculations = 1  # Only one mode at a time
+        mode = selected_mode
+        settings = mode_settings[mode]
             calculator = TravelTimeCalculator(location=location,
                                               max_time=settings["max_time"],
                                               mode=settings["api_mode"],
