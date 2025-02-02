@@ -24,15 +24,15 @@ with st.sidebar:
 
     # Tabs for contours
     st.markdown("### Contours")
-    stored_tabs = [
-        f"{mode} ({settings['max_time']}min)"
-        for mode, settings in st.session_state.mode_settings.items()
-    ] if 'mode_settings' in st.session_state else []
-    tabs = stored_tabs + ["+"]
+    if 'mode_settings' not in st.session_state:
+        st.session_state.mode_settings = {}
+    
+    stored_tabs = [f"{mode} ({settings['max_time']}min)" 
+                   for mode, settings in st.session_state.mode_settings.items()]
+    tabs = ["+ New"] + stored_tabs
     current_tab = st.tabs(tabs)
 
     mode_settings = {}
-    tab_index = len(stored_tabs)  # Index of the "+" tab
     with current_tab[tab_index]:
         # Location input
         location = st.text_input("Starting Location",
@@ -134,6 +134,13 @@ try:
         new_results.append((mode, results, settings["max_time"]))
         st.session_state.center_location = calculator.center_location
 
+        # Store the new mode settings
+        st.session_state.mode_settings[mode] = {
+            "max_time": settings["max_time"],
+            "interval": settings["interval"],
+            "api_mode": api_mode
+        }
+        # Add new results
         st.session_state.stored_results.extend(new_results)
 
         # Create visualization

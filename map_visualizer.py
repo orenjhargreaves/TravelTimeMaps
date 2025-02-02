@@ -121,7 +121,7 @@ class MapVisualizer:
 
         fig.update_layout(
             mapbox=dict(
-                style='mapbox://styles/mapbox/streets-v11' if not washed_out else 'mapbox://styles/mapbox/light-v10',
+                style='carto-positron' if not washed_out else 'carto-light',
                 center=dict(lat=center[0], lon=center[1]),
                 zoom=11
             ),
