@@ -83,7 +83,6 @@ class MapVisualizer:
                         orientation='h',
                         bgcolor='rgba(255,255,255,0.9)',
                         tickfont=dict(size=12),
-                        showline=True,
                         outlinewidth=2
                     )
                 ),
