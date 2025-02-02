@@ -113,11 +113,30 @@ class TravelTimeCalculator:
                 if response.status_code != 200:
                     raise ValueError(f"Error calculating isochrones: {response.text}")
                 data = response.json()
+                print(f"Geoapify response for {minutes} minutes:", data)
                 if data.get("features"):
                     for feature in data["features"]:
-                        # Add the contour time to properties for each feature
-                        feature["properties"]["contour"] = minutes
-                    features.extend(data["features"])
+                        # The Geoapify response structure is different from Mapbox
+                        # We need to ensure we're handling the coordinates correctly
+                        if feature["geometry"]["type"] == "Polygon":
+                            # Add the contour time to properties
+                            feature["properties"]["contour"] = minutes
+                            features.append(feature)
+                        elif feature["geometry"]["type"] == "MultiPolygon":
+                            # For MultiPolygon, create a feature for each polygon
+                            for polygon in feature["geometry"]["coordinates"]:
+                                new_feature = {
+                                    "type": "Feature",
+                                    "geometry": {
+                                        "type": "Polygon",
+                                        "coordinates": polygon
+                                    },
+                                    "properties": {
+                                        "contour": minutes,
+                                        **feature["properties"]
+                                    }
+                                }
+                                features.append(new_feature)
             
             self.last_result = {"type": "FeatureCollection", "features": features}
             return self.last_result
