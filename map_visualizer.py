@@ -65,11 +65,12 @@ class MapVisualizer:
                     marker=dict(
                         color=self._get_color(contour, time),
                     ),
-                    width=0.8,
+                    width=0.3,
                     name=f'{contour.mode} - {time}min',
                     showlegend=False,
                     xaxis='x2',
-                    yaxis='y2'
+                    yaxis='y2',
+                    opacity=0.7
                 )
 
             # Add contour lines
@@ -124,7 +125,8 @@ class MapVisualizer:
             height=800,
             margin=dict(l=0, r=0, t=30, b=0),
             showlegend=False,
-            bargap=0.05
+            bargap=0,
+            bargroupgap=0.2
         )
 
         return fig
