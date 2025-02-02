@@ -93,7 +93,7 @@ class MapVisualizer:
 
         fig.update_layout(
             mapbox=dict(
-                style='stamen-watercolor' if not washed_out else 'carto-light',
+                style=washed_out,  # Now washed_out will be the style name
                 center=dict(lat=center[0], lon=center[1]),
                 zoom=11,
                 domain={'x': [0, 1], 'y': [0, 1]}

@@ -131,8 +131,12 @@ with map_col1:
     map_container = st.empty()
 
 with map_col2:
-    map_style = st.radio("Map Style", ["Standard", "Washed out"],
-                         horizontal=True)
+    map_style = st.selectbox("Map Style", [
+        "basic", "streets", "outdoors", "light", "dark", "satellite",
+        "satellite-streets", "navigation-day", "navigation-night",
+        "stamen-watercolor", "stamen-terrain", "stamen-toner", "carto-positron",
+        "carto-darkmatter"
+    ], index=0)
 
 # Initialize visualization
 try:
