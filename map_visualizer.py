@@ -15,16 +15,16 @@ class MapVisualizer:
 
     def _get_color(self, contour, time: int, base_opacity: float = 0.6) -> str:
         """Calculate color based on mode and time proportion with hue transition"""
-        # Get color from the contour object
-        if contour.color != "Default":
-            color_options = {
-                "Blue": ((135, 206, 235), (0, 0, 139)),
-                "Green": ((144, 238, 144), (34, 139, 34)),
-                "Red": ((255, 182, 193), (139, 0, 0)),
-                "Orange": ((255, 218, 185), (210, 105, 30)),
-                "Purple": ((230, 190, 255), (128, 0, 128))
-            }
-            start_color, end_color = color_options[st.session_state[custom_color_key]]
+        color_options = {
+            "Blue": ((135, 206, 235), (0, 0, 139)),
+            "Green": ((144, 238, 144), (34, 139, 34)),
+            "Red": ((255, 182, 193), (139, 0, 0)),
+            "Orange": ((255, 218, 185), (210, 105, 30)),
+            "Purple": ((230, 190, 255), (128, 0, 128))
+        }
+        
+        if contour.color != "Default" and contour.color in color_options:
+            start_color, end_color = color_options[contour.color]
         else:
             # Use default mode colors
             start_color, end_color = self.mode_colors.get(contour.mode, ((128, 128, 128), (64, 64, 64)))
