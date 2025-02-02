@@ -32,12 +32,7 @@ with st.sidebar:
         "Bus": ("bus", True)
     }
 
-    # Create a mapping of modes to their occurrence number
-    mode_counts = {}
-    mode_indices = []
-    for mode, _, _ in st.session_state.stored_results:
-        mode_counts[mode] = mode_counts.get(mode, 0) + 1
-        mode_indices.append(mode_counts[mode])
+    # Mode counts are no longer needed since we use the contour list directly
 
     # Store contour information when created
     if "contour_info" not in st.session_state:
@@ -129,7 +124,7 @@ with st.sidebar:
                 st.rerun()
 
             if st.button("Delete Contour", key=f"delete_{idx}"):
-                st.session_state.stored_results.pop(idx)
+                st.session_state.contours.pop(idx)
                 st.rerun()
 
 # Create placeholders for the interface elements
