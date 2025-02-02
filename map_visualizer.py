@@ -76,7 +76,7 @@ class MapVisualizer:
                         ),
                         x=1.02 + offset,  # Stack horizontally
                         y=0.5,
-                        len=0.75,
+                        len=(0.75 * max_time/60),  # Scale length proportionally to max time
                         thickness=20,
                         orientation='v',
                         bgcolor='rgba(255,255,255,0.9)',
