@@ -56,6 +56,7 @@ class MapVisualizer:
                            reverse=True)
 
             # Create a separate trace for the colorbar
+            offset = 0.3 * (len(results) - 1 - results.index((mode, data, max_time)))
             fig.add_scattermapbox(
                 lat=[None],
                 lon=[None],
@@ -70,16 +71,16 @@ class MapVisualizer:
                     cmax=max_time,
                     colorbar=dict(
                         title=dict(
-                            text="Travel Time (minutes)",
+                            text=f"{mode}",
                             side="top"
                         ),
                         tickmode='array',
                         tickvals=[f["properties"]["contour"] for f in features],
                         ticktext=[f'{i}min' for i in [f["properties"]["contour"] for f in features]],
-                        thickness=30,
-                        len=1.0,
+                        thickness=20,
+                        len=0.6,
                         x=0.5,  # Center horizontally
-                        y=-0.15,  # Position below map
+                        y=-0.15 - offset,  # Stack the colorbars vertically
                         orientation='h',
                         bgcolor='rgba(255,255,255,0.9)',
                         tickfont=dict(size=12),

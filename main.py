@@ -27,14 +27,15 @@ with st.sidebar:
     if 'mode_settings' not in st.session_state:
         st.session_state.mode_settings = {}
     
-    stored_tabs = [f"{mode} ({settings['max_time']}min)" 
-                   for mode, settings in st.session_state.mode_settings.items()]
-    tabs = stored_tabs + ["+ New"]
+    if 'active_tabs' not in st.session_state:
+        st.session_state.active_tabs = []
+    
+    stored_tabs = st.session_state.active_tabs
+    tabs = ["+ New"] + stored_tabs
     current_tab = st.tabs(tabs)
 
     mode_settings = {}
-    tab_index = len(stored_tabs)  # Index of the "+ New" tab
-    with current_tab[tab_index]:
+    with current_tab[0]:  # Always use first tab for new contours
         # Location input
         location = st.text_input("Starting Location",
                                  "Buckingham Palace, London",
@@ -141,11 +142,16 @@ try:
             "interval": settings["interval"],
             "api_mode": api_mode
         }
+        # Update active tabs
+        new_tab_name = f"{mode} ({settings['max_time']}min)"
+        if new_tab_name not in st.session_state.active_tabs:
+            st.session_state.active_tabs.append(new_tab_name)
+        
         # Add new results
         st.session_state.stored_results.extend(new_results)
-
+        
         # Create visualization
-        fig = visualizer.create_multi_mode_map(
+        st.session_state.current_fig = visualizer.create_multi_mode_map(
             st.session_state.stored_results,
             st.session_state.center_location,
             washed_out=(map_style == "Washed out"))
