@@ -39,12 +39,19 @@ with st.sidebar:
 
     mode_settings = {}
     
-    # Handle the New tab (always last)
-    if st.session_state.selected_tab == len(tabs) - 1:
-        # Location input
-        location = st.text_input("Starting Location",
-                                 "Buckingham Palace, London",
-                                 help="Enter an address or landmark")
+    # Handle tab content
+    with current_tab[st.session_state.selected_tab]:
+        if st.session_state.selected_tab == len(tabs) - 1:
+            # New tab content
+            location = st.text_input("Starting Location",
+                                     "Buckingham Palace, London",
+                                     help="Enter an address or landmark")
+        else:
+            # Display stored contour information
+            stored_result = st.session_state.stored_results[st.session_state.selected_tab]
+            st.text(f"Location: {location}")
+            st.text(f"Mode: {stored_result[0]}")
+            st.text(f"Maximum Time: {stored_result[2]} minutes")
 
         # Transportation mode mapping
         available_modes = {
@@ -83,7 +90,7 @@ with st.sidebar:
 
     # Add/Delete button based on tab
     if st.session_state.selected_tab == len(tabs) - 1:  # New tab
-        calculate = st.button("Add Contour")
+        st.session_state.calculate = st.button("Add Contour")
     else:
         if st.button("Delete Contour"):
             st.session_state.stored_results.pop(st.session_state.selected_tab)
@@ -122,7 +129,7 @@ with progress_container:
 try:
     visualizer = MapVisualizer()
 
-    if calculate:
+    if getattr(st.session_state, 'calculate', False):
         new_results = []
         total_calculations = 1  # Only one mode at a time
         mode = selected_mode
