@@ -87,7 +87,7 @@ class MapVisualizer:
                 marker=dict(
                     size=0,
                     colorscale=[[i/(len(features)-1), 
-                               self._get_color(mode, f["properties"]["contour"], max_time)] 
+                               self._get_color(contour.mode, f["properties"]["contour"], contour.max_time)] 
                               for i, f in enumerate(features)],
                     showscale=True,
                     cmin=0,
@@ -118,7 +118,7 @@ class MapVisualizer:
             for feature in features:
                 time = feature["properties"]["contour"]
                 coordinates = feature["geometry"]["coordinates"][0]
-                color = self._get_color(mode, time, max_time)
+                color = self._get_color(contour.mode, time, contour.max_time)
 
                 fig.add_scattermapbox(
                     lat=[coord[1] for coord in coordinates],
