@@ -43,12 +43,23 @@ with st.sidebar:
         help="Maximum travel time from the starting point"
     )
 
+    # API selection
+    use_geoapify = st.checkbox("Use Geoapify API (includes public transport)", False)
+    
     # Transportation mode mapping
-    mode_mapping = {
-        "Cycling": "bicycling",  # Default mode first
-        "Driving": "driving",
-        "Walking": "walking"
-    }
+    if use_geoapify:
+        mode_mapping = {
+            "Public Transport": "public_transport",
+            "Cycling": "bicycling",
+            "Driving": "driving",
+            "Walking": "walking"
+        }
+    else:
+        mode_mapping = {
+            "Cycling": "bicycling",  # Default mode first
+            "Driving": "driving",
+            "Walking": "walking"
+        }
 
     # Transportation mode
     display_mode = st.selectbox(
@@ -79,7 +90,8 @@ try:
         calculator = TravelTimeCalculator(
             location=location,
             max_time=max_time,
-            mode=mode
+            mode=mode,
+            use_geoapify=use_geoapify
         )
         visualizer = MapVisualizer()
 
