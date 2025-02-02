@@ -38,7 +38,7 @@ class MapVisualizer:
         
         return f'rgba({r},{g},{b},{opacity})'
 
-    def create_multi_mode_map(self, results: List[Tuple[str, Dict, int]], center: Tuple[float, float]) -> go.Figure:
+    def create_multi_mode_map(self, results: List[Tuple[str, Dict, int]], center: Tuple[float, float], washed_out: bool = False) -> go.Figure:
         """Create a map with multiple transport mode contours."""
         if not results:
             raise ValueError("No isochrone data available for visualization")
@@ -117,7 +117,7 @@ class MapVisualizer:
 
         fig.update_layout(
             mapbox=dict(
-                style='carto-positron',
+                style='carto-positron' if not washed_out else 'carto-light',
                 center=dict(lat=center[0], lon=center[1]),
                 zoom=11
             ),

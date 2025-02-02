@@ -81,25 +81,20 @@ with st.sidebar:
             "api_mode": available_modes[mode]
         }
 
+    # Map style options
+    map_style = st.radio("Map Style", ["Standard", "Washed out"], horizontal=True)
+    
     # Calculate button
     calculate = st.button("Add Contours")
-
-# Create tabs
-tabs = ["Add New Contour"] + [f"{mode} ({max_time}min)" for mode, _, max_time in st.session_state.stored_results]
-active_tab = st.tabs(tabs)
-
-# Add New Contour tab
-with active_tab[0]:
-    st.write("Configure new contour settings:")
-
-# Existing contours tabs
-for idx, tab in enumerate(active_tab[1:], 1):
-    with tab:
-        mode, _, max_time = st.session_state.stored_results[idx-1]
-        st.write(f"Settings for {mode}")
-        if st.button(f"Remove {mode}", key=f"remove_{idx-1}"):
-            st.session_state.stored_results.pop(idx-1)
-            st.experimental_rerun()
+    
+    # Tabs in sidebar for existing contours
+    if st.session_state.stored_results:
+        st.markdown("### Existing Contours")
+        for idx, (mode, _, max_time) in enumerate(st.session_state.stored_results):
+            with st.expander(f"{mode} ({max_time}min)"):
+                if st.button(f"Remove {mode}", key=f"remove_{idx}"):
+                    st.session_state.stored_results.pop(idx)
+                    st.experimental_rerun()
 
 # Create placeholders for the interface elements
 map_placeholder = st.empty()
@@ -144,7 +139,8 @@ try:
         # Create visualization
         fig = visualizer.create_multi_mode_map(
             st.session_state.stored_results,
-            st.session_state.center_location
+            st.session_state.center_location,
+            washed_out=(map_style == "Washed out")
         )
 
         # Display the map
