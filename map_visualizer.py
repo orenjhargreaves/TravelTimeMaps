@@ -1,6 +1,7 @@
 import plotly.graph_objects as go
 import streamlit as st
-from typing import Dict, List, Tuple
+import numpy as np
+from typing import List
 
 class MapVisualizer:
     def __init__(self):
@@ -56,26 +57,6 @@ class MapVisualizer:
                            key=lambda x: x["properties"]["contour"],
                            reverse=True)
 
-            # Create bar chart for legend
-            base = 0
-            for feature in features:
-                time = feature["properties"]["contour"]
-                fig.add_bar(
-                    x=[contour.mode],
-                    y=[time],
-                    base=[base],
-                    marker=dict(
-                        color=self._get_color(contour, time),
-                    ),
-                    width=0.3,
-                    name=f'{contour.mode} - {time}min',
-                    showlegend=False,
-                    xaxis='x2',
-                    yaxis='y2',
-                    opacity=0.7
-                )
-                base = time
-
             # Add contour lines
             for feature in features:
                 time = feature["properties"]["contour"]
@@ -112,18 +93,10 @@ class MapVisualizer:
 
         fig.update_layout(
             mapbox=dict(
-                style='carto-positron' if not washed_out else 'carto-light',
+                style='stamen-watercolor' if not washed_out else 'carto-light',
                 center=dict(lat=center[0], lon=center[1]),
                 zoom=11,
-                domain={'x': [0, 0.7], 'y': [0, 1]}
-            ),
-            xaxis2=dict(
-                domain=[0.75, 1],
-                title='Transport Mode'
-            ),
-            yaxis2=dict(
-                domain=[0, 1],
-                title='Time (minutes)'
+                domain={'x': [0, 1], 'y': [0, 1]}
             ),
             height=800,
             margin=dict(l=0, r=0, t=30, b=0),
