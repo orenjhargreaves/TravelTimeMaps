@@ -42,7 +42,7 @@ with st.sidebar:
         mode_counts[mode] = mode_counts.get(mode, 0) + 1
 
     # Create tabs for new contour and existing contours
-    tabs = ["+"] + [f"{result[0]} {mode_counts[result[0]]}" for result in st.session_state.stored_results]
+    tabs = ["New"] + [f"{result[0]} {mode_counts[result[0]]}" for result in st.session_state.stored_results]
     current_tab = st.tabs(tabs)
 
     with current_tab[0]:
