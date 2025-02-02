@@ -113,9 +113,10 @@ class TravelTimeCalculator:
                 if response.status_code != 200:
                     raise ValueError(f"Error calculating isochrones: {response.text}")
                 data = response.json()
-                if data["features"]:
-                    # Add the contour time to properties
-                    data["features"][0]["properties"]["contour"] = minutes
+                if data.get("features"):
+                    for feature in data["features"]:
+                        # Add the contour time to properties for each feature
+                        feature["properties"]["contour"] = minutes
                     features.extend(data["features"])
             
             self.last_result = {"type": "FeatureCollection", "features": features}

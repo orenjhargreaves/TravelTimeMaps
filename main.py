@@ -49,10 +49,11 @@ with st.sidebar:
     # Transportation mode mapping
     if use_geoapify:
         mode_mapping = {
-            "Public Transport": "public_transport",
-            "Cycling": "bicycling",
-            "Driving": "driving",
-            "Walking": "walking"
+            "Transit": "transit",
+            "Approximate Transit": "approximated_transit",
+            "Cycling": "bicycle",
+            "Driving": "drive",
+            "Walking": "walk"
         }
     else:
         mode_mapping = {
