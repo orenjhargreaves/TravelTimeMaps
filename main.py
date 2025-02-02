@@ -22,31 +22,6 @@ st.title("Travel Time Contour Map")
 with st.sidebar:
     st.header("Settings")
 
-    # Location input
-    location = st.text_input("Starting Location",
-                             "Buckingham Palace, London",
-                             help="Enter an address or landmark")
-
-    # API selection
-    use_geoapify = st.checkbox("Use Geoapify API (includes public transport)",
-                               False)
-
-    # Transportation mode mapping
-    if use_geoapify:
-        available_modes = {
-            "Cycling": "bicycle",
-            "Driving": "drive",
-            "Walking": "walk",
-            "Transit": "transit",
-            "Approximate Transit": "approximated_transit"
-        }
-    else:
-        available_modes = {
-            "Cycling": "bicycling",
-            "Driving": "driving",
-            "Walking": "walking"
-        }
-
     # Tabs for contours
     st.markdown("### Contours")
     tabs = ["+ New"] + [
@@ -57,6 +32,31 @@ with st.sidebar:
 
     mode_settings = {}
     with current_tab[0]:
+        # Location input
+        location = st.text_input("Starting Location",
+                                 "Buckingham Palace, London",
+                                 help="Enter an address or landmark")
+
+        # API selection
+        use_geoapify = st.checkbox("Use Geoapify API (includes public transport)",
+                                   False)
+
+        # Transportation mode mapping
+        if use_geoapify:
+            available_modes = {
+                "Cycling": "bicycle",
+                "Driving": "drive",
+                "Walking": "walk",
+                "Transit": "transit",
+                "Approximate Transit": "approximated_transit"
+            }
+        else:
+            available_modes = {
+                "Cycling": "bicycling",
+                "Driving": "driving",
+                "Walking": "walking"
+            }
+
         # Single mode selection
         selected_mode = st.selectbox("Transportation Mode",
                                      list(available_modes.keys()),
@@ -64,7 +64,7 @@ with st.sidebar:
 
         # Settings for selected mode
         st.subheader(f"{selected_mode} Settings")
-        max_time = st.slider(f"Maximum Travel Time ({mode})",
+        max_time = st.slider(f"Maximum Travel Time ({selected_mode})",
                              5,
                              60,
                              30,
