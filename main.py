@@ -43,18 +43,6 @@ with st.sidebar:
     
     # Handle tab content
     with current_tab[st.session_state.selected_tab]:
-        if st.session_state.selected_tab == len(tabs) - 1:
-            # New tab content
-            st.session_state.location = st.text_input("Starting Location",
-                                     st.session_state.location,
-                                     help="Enter an address or landmark")
-        else:
-            # Display stored contour information
-            stored_result = st.session_state.stored_results[st.session_state.selected_tab]
-            st.text(f"Location: {st.session_state.location}")
-            st.text(f"Mode: {stored_result[0]}")
-            st.text(f"Maximum Time: {stored_result[2]} minutes")
-
         # Transportation mode mapping
         available_modes = {
             "Cycling": ("bicycling", False),  # (mode, use_geoapify)
@@ -65,30 +53,44 @@ with st.sidebar:
             "Bus": ("bus", True)
         }
 
-        # Single mode selection
-        selected_mode = st.selectbox("Transportation Mode",
-                                     list(available_modes.keys()),
-                                     help="Select a transportation mode")
+        if st.session_state.selected_tab == len(tabs) - 1:
+            # New tab content
+            st.session_state.location = st.text_input("Starting Location",
+                                     st.session_state.location,
+                                     help="Enter an address or landmark")
 
-        # Settings for selected mode
-        st.subheader(f"{selected_mode} Settings")
-        max_time = st.slider(f"Maximum Travel Time ({selected_mode})",
-                             5,
-                             60,
-                             30,
-                             step=5,
-                             key=f"max_time_{selected_mode}")
-        interval = st.slider(f"Time Interval ({selected_mode})",
-                             1,
-                             15,
-                             5,
-                             step=1,
-                             key=f"interval_{selected_mode}")
-        mode_settings[selected_mode] = {
-            "max_time": max_time,
-            "interval": interval,
-            "api_mode": available_modes[selected_mode]
-        }
+            # Single mode selection
+            selected_mode = st.selectbox("Transportation Mode",
+                                         list(available_modes.keys()),
+                                         help="Select a transportation mode")
+
+            # Settings for selected mode
+            st.subheader(f"{selected_mode} Settings")
+            max_time = st.slider(f"Maximum Travel Time ({selected_mode})",
+                                 5,
+                                 60,
+                                 30,
+                                 step=5,
+                                 key=f"max_time_{selected_mode}")
+            interval = st.slider(f"Time Interval ({selected_mode})",
+                                 1,
+                                 15,
+                                 5,
+                                 step=1,
+                                 key=f"interval_{selected_mode}")
+            mode_settings[selected_mode] = {
+                "max_time": max_time,
+                "interval": interval,
+                "api_mode": available_modes[selected_mode]
+            }
+        else:
+            # Display stored contour information
+            stored_result = st.session_state.stored_results[st.session_state.selected_tab]
+            st.markdown("### Contour Information")
+            st.text(f"Location: {st.session_state.location}")
+            st.text(f"Mode: {stored_result[0]}")
+            st.text(f"Maximum Time: {stored_result[2]} minutes")
+            selected_mode = stored_result[0]
 
     # Add/Delete button based on tab
     if st.session_state.selected_tab == len(tabs) - 1:  # New tab
