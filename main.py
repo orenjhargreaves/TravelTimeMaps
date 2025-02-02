@@ -157,7 +157,7 @@ try:
             washed_out=(map_style == "Washed out"))
 
         # Display the map
-        map_placeholder.plotly_chart(fig, use_container_width=True)
+        map_placeholder.plotly_chart(st.session_state.current_fig, use_container_width=True)
 
         # Clear progress indicators
         progress_text.empty()
@@ -165,10 +165,11 @@ try:
 
     else:
         if st.session_state.stored_results:
-            fig = visualizer.create_multi_mode_map(
+            st.session_state.current_fig = visualizer.create_multi_mode_map(
                 st.session_state.stored_results,
-                st.session_state.center_location)
-            map_placeholder.plotly_chart(fig, use_container_width=True)
+                st.session_state.center_location,
+                washed_out=(map_style == "Washed out"))
+            map_placeholder.plotly_chart(st.session_state.current_fig, use_container_width=True)
         else:
             # Show empty map container
             map_placeholder.empty()
