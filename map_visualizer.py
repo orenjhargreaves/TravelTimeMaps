@@ -58,11 +58,13 @@ class MapVisualizer:
         
         return f'rgba({r},{g},{b},{opacity})'
 
-    def create_multi_mode_map(self, results: List[Tuple[str, Dict, int]], center: Tuple[float, float], washed_out: bool = False) -> go.Figure:
+    def create_multi_mode_map(self, contours: List["Contour"], washed_out: bool = False) -> go.Figure:
         """Create a map with multiple transport mode contours."""
-        self.results = results
-        if not results:
-            raise ValueError("No isochrone data available for visualization")
+        if not contours:
+            raise ValueError("No contours available for visualization")
+            
+        # Use the first contour's center location as the map center
+        center = contours[0].center_location
 
         fig = go.Figure()
 

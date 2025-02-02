@@ -7,15 +7,11 @@ from map_visualizer import MapVisualizer
 # Page configuration
 st.set_page_config(page_title="Travel Time Contour Map", layout="wide")
 
+from contour import Contour
+
 # Initialize session state
-if 'calculator' not in st.session_state:
-    st.session_state.calculator = None
-if 'visualizer' not in st.session_state:
-    st.session_state.visualizer = None
-if 'stored_results' not in st.session_state:
-    st.session_state.stored_results = []
-if 'center_location' not in st.session_state:
-    st.session_state.center_location = None
+if 'contours' not in st.session_state:
+    st.session_state.contours = []
 if 'location' not in st.session_state:
     st.session_state.location = "Buckingham Palace, London"
 
@@ -48,7 +44,7 @@ with st.sidebar:
         st.session_state.contour_info = []
 
     # Create tabs for new contour and existing contours
-    tabs = ["New"] + [f"{result[0]} {idx}" for result, idx in zip(st.session_state.stored_results, mode_indices)]
+    tabs = ["New"] + [f"{contour.mode} {i+1}" for i, contour in enumerate(st.session_state.contours)]
     current_tab = st.tabs(tabs)
 
     with current_tab[0]:
@@ -87,25 +83,26 @@ with st.sidebar:
                 use_geoapify=use_geoapify
             )
 
+            new_contour = Contour(
+                mode=selected_mode,
+                location=st.session_state.new_location,
+                max_time=max_time,
+                interval=interval
+            )
             results = calculator.calculate_travel_times()
-            st.session_state.center_location = calculator.center_location
-            st.session_state.stored_results.append((selected_mode, results, max_time))
-            st.session_state.contour_info.append({
-                "location": st.session_state.new_location,
-                "interval": interval
-            })
+            new_contour.set_results(results, calculator.center_location)
+            st.session_state.contours.append(new_contour)
             st.rerun()
 
     # Display existing contour information in tabs
     for idx, tab in enumerate(current_tab[1:], 0):
         with tab:
-            stored_result = st.session_state.stored_results[idx]
+            contour = st.session_state.contours[idx]
             st.markdown("### Contour Information")
-            contour_info = st.session_state.contour_info[idx]
-            st.text(f"Location: {contour_info['location']}")
-            st.text(f"Mode: {stored_result[0]}")
-            st.text(f"Maximum Time: {stored_result[2]} minutes")
-            st.text(f"Time Interval: {contour_info['interval']} minutes")
+            st.text(f"Location: {contour.location}")
+            st.text(f"Mode: {contour.mode}")
+            st.text(f"Maximum Time: {contour.max_time} minutes")
+            st.text(f"Time Interval: {contour.interval} minutes")
 
             # Color selection
             color_options = {
@@ -149,10 +146,9 @@ with map_col2:
 try:
     visualizer = MapVisualizer()
 
-    if st.session_state.stored_results:
+    if st.session_state.contours:
         current_fig = visualizer.create_multi_mode_map(
-            st.session_state.stored_results,
-            st.session_state.center_location,
+            st.session_state.contours,
             washed_out=(map_style == "Washed out")
         )
         map_container.plotly_chart(current_fig, use_container_width=True)
