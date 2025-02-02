@@ -56,41 +56,21 @@ class MapVisualizer:
                            key=lambda x: x["properties"]["contour"],
                            reverse=True)
 
-            # Create colorbar trace
-            fig.add_scattermapbox(
-                lat=[None],
-                lon=[None],
-                mode='markers',
-                marker=dict(
-                    size=0,
-                    colorscale=[[i/(len(features)-1), 
-                               self._get_color(contour, f["properties"]["contour"])] 
-                              for i, f in enumerate(features)],
-                    showscale=True,
-                    cmin=0,
-                    cmax=contour.max_time,
-                    colorbar=dict(
-                        title=dict(
-                            text=f"{contour.mode}",
-                            side="top"
-                        ),
-                        x=1.02,
-                        y=0.5,
-                        yanchor='middle',
-                        len=0.8,
-                        thickness=15,
-                        orientation='v',
-                        xanchor='left',
-                        bgcolor='rgba(255,255,255,0.9)',
-                        tickmode='array',
-                        tickvals=[f["properties"]["contour"] for f in features],
-                        ticktext=[f'{i}min' for i in [f["properties"]["contour"] for f in features]],
-                        tickfont=dict(size=10),
-                        titlefont=dict(size=12)
-                    )
-                ),
-                showlegend=False
-            )
+            # Create bar chart for legend
+            for feature in features:
+                time = feature["properties"]["contour"]
+                fig.add_bar(
+                    x=[contour.mode],
+                    y=[time],
+                    marker=dict(
+                        color=self._get_color(contour, time),
+                    ),
+                    width=0.8,
+                    name=f'{contour.mode} - {time}min',
+                    showlegend=False,
+                    xaxis='x2',
+                    yaxis='y2'
+                )
 
             # Add contour lines
             for feature in features:
@@ -130,11 +110,21 @@ class MapVisualizer:
             mapbox=dict(
                 style='carto-positron' if not washed_out else 'carto-light',
                 center=dict(lat=center[0], lon=center[1]),
-                zoom=11
+                zoom=11,
+                domain={'x': [0, 0.7], 'y': [0, 1]}
+            ),
+            xaxis2=dict(
+                domain=[0.75, 1],
+                title='Transport Mode'
+            ),
+            yaxis2=dict(
+                domain=[0, 1],
+                title='Time (minutes)'
             ),
             height=800,
             margin=dict(l=0, r=0, t=30, b=0),
-            showlegend=False
+            showlegend=False,
+            bargap=0.05
         )
 
         return fig
