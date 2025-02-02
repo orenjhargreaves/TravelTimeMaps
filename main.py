@@ -69,17 +69,17 @@ with st.sidebar:
                              60,
                              30,
                              step=5,
-                             key=f"max_time_{mode}")
-        interval = st.slider(f"Time Interval ({mode})",
+                             key=f"max_time_{selected_mode}")
+        interval = st.slider(f"Time Interval ({selected_mode})",
                              1,
                              15,
                              5,
                              step=1,
-                             key=f"interval_{mode}")
-        mode_settings[mode] = {
+                             key=f"interval_{selected_mode}")
+        mode_settings[selected_mode] = {
             "max_time": max_time,
             "interval": interval,
-            "api_mode": available_modes[mode]
+            "api_mode": available_modes[selected_mode]
         }
 
     # Calculate button
