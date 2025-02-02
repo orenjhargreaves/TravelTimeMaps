@@ -55,10 +55,13 @@ class MapVisualizer:
                            key=lambda x: x["properties"]["contour"],
                            reverse=True)
 
+            # Get first feature's coordinates for legend
+            first_coordinates = features[0]["geometry"]["coordinates"][0]
+            
             # Add trace for contour lines with legend
             fig.add_scattermapbox(
-                lat=[coordinates[0][1]],  # Use first coordinate for legend
-                lon=[coordinates[0][0]],
+                lat=[first_coordinates[0][1]],
+                lon=[first_coordinates[0][0]],
                 mode='lines',
                 line=dict(
                     width=3,
