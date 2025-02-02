@@ -28,7 +28,7 @@ class MapVisualizer:
         try:
             color_index = next((i for i, (m, _, t) in enumerate(self.results) if m == mode and t == max_time), 0)
             color_key = f"color_choice_{color_index}"
-        if hasattr(st.session_state, color_key) and st.session_state[color_key] != "Default":
+            if hasattr(st.session_state, color_key) and st.session_state[color_key] != "Default":
             color_options = {
                 "Blue": ((135, 206, 235), (0, 0, 139)),
                 "Green": ((144, 238, 144), (34, 139, 34)),
@@ -37,7 +37,7 @@ class MapVisualizer:
                 "Purple": ((230, 190, 255), (128, 0, 128))
             }
             start_color, end_color = color_options[st.session_state[color_key]]
-        else:
+        except Exception:
             if mode not in mode_color_ranges:
                 return f'rgba(128,128,128,{base_opacity})'
             start_color, end_color = mode_color_ranges[mode]
