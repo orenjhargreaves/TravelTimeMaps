@@ -49,7 +49,9 @@ class TravelTimeCalculator:
         if progress_callback:
             progress_callback("Calculating isochrones...", 0.3)
 
-        contours_minutes = list(range(0, self.max_time + self.time_step, self.time_step))
+        # Create 4 evenly spaced contours between 0 and max_time
+        contours_minutes = [int(self.max_time * i / 3) for i in range(4)]
+        contours_minutes = [t for t in contours_minutes if t > 0]  # Remove 0 if present
         url = f"https://api.mapbox.com/isochrone/v1/mapbox/{self.mode}/{self.center_location[1]},{self.center_location[0]}"
 
         params = {

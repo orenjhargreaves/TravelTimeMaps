@@ -88,8 +88,8 @@ try:
         # Initialize calculator and visualizer with new parameters
         calculator = TravelTimeCalculator(
             location=location,
-            max_time=60,
-            time_step=5,
+            max_time=45,
+            time_step=15,
             mode=mode,
             radius_km=radius_km,
             point_spacing_meters=point_spacing_meters
