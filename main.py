@@ -84,13 +84,21 @@ with st.sidebar:
     # Calculate button
     calculate = st.button("Add Contours")
 
-# Display existing contours and removal options
-col1, col2 = st.columns([3, 1])
-with col2:
-    st.write("Active Contours:")
-    for idx, (mode, _, max_time) in enumerate(st.session_state.stored_results):
-        if st.button(f"Remove {mode} ({max_time}min)", key=f"remove_{idx}"):
-            st.session_state.stored_results.pop(idx)
+# Create tabs
+tabs = ["Add New Contour"] + [f"{mode} ({max_time}min)" for mode, _, max_time in st.session_state.stored_results]
+active_tab = st.tabs(tabs)
+
+# Add New Contour tab
+with active_tab[0]:
+    st.write("Configure new contour settings:")
+
+# Existing contours tabs
+for idx, tab in enumerate(active_tab[1:], 1):
+    with tab:
+        mode, _, max_time = st.session_state.stored_results[idx-1]
+        st.write(f"Settings for {mode}")
+        if st.button(f"Remove {mode}", key=f"remove_{idx-1}"):
+            st.session_state.stored_results.pop(idx-1)
             st.experimental_rerun()
 
 # Create placeholders for the interface elements
