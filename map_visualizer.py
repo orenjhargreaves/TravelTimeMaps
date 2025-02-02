@@ -80,7 +80,6 @@ class MapVisualizer:
                         len=0.75,  # Keep consistent length
                         thickness=20,
                         orientation='v',
-                        range=[0, max_time],  # Set the range for proper scaling
                         bgcolor='rgba(255,255,255,0.9)',
                         tickmode='array',
                         tickvals=[f["properties"]["contour"] for f in features],
