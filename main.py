@@ -5,10 +5,7 @@ from travel_time_calculator import TravelTimeCalculator
 from map_visualizer import MapVisualizer
 
 # Page configuration
-st.set_page_config(
-    page_title="Travel Time Contour Map",
-    layout="wide"
-)
+st.set_page_config(page_title="Travel Time Contour Map", layout="wide")
 
 # Initialize session state
 if 'calculator' not in st.session_state:
@@ -26,14 +23,13 @@ with st.sidebar:
     st.header("Settings")
 
     # Location input
-    location = st.text_input(
-        "Starting Location",
-        "Buckingham Palace, London",
-        help="Enter an address or landmark"
-    )
+    location = st.text_input("Starting Location",
+                             "Buckingham Palace, London",
+                             help="Enter an address or landmark")
 
     # API selection
-    use_geoapify = st.checkbox("Use Geoapify API (includes public transport)", False)
+    use_geoapify = st.checkbox("Use Geoapify API (includes public transport)",
+                               False)
 
     # Transportation mode mapping
     if use_geoapify:
@@ -53,32 +49,33 @@ with st.sidebar:
 
     # Tabs for contours
     st.markdown("### Contours")
-    tabs = ["+ New"] + [f"{mode} ({settings['max_time']}min)" for mode, settings in st.session_state.mode_settings.items()] if 'mode_settings' in st.session_state else ["+ New"]
+    tabs = ["+ New"] + [
+        f"{mode} ({settings['max_time']}min)"
+        for mode, settings in st.session_state.mode_settings.items()
+    ] if 'mode_settings' in st.session_state else ["+ New"]
     current_tab = st.tabs(tabs)
-    
+
     mode_settings = {}
     with current_tab[0]:
         # Single mode selection
-        selected_mode = st.selectbox(
-            "Transportation Mode",
-            list(available_modes.keys()),
-            help="Select a transportation mode"
-        )
-        
+        selected_mode = st.selectbox("Transportation Mode",
+                                     list(available_modes.keys()),
+                                     help="Select a transportation mode")
+
         # Settings for selected mode
         st.subheader(f"{selected_mode} Settings")
-        max_time = st.slider(
-            f"Maximum Travel Time ({mode})",
-            5, 60, 30,
-            step=5,
-            key=f"max_time_{mode}"
-        )
-        interval = st.slider(
-            f"Time Interval ({mode})",
-            1, 15, 5,
-            step=1,
-            key=f"interval_{mode}"
-        )
+        max_time = st.slider(f"Maximum Travel Time ({mode})",
+                             5,
+                             60,
+                             30,
+                             step=5,
+                             key=f"max_time_{mode}")
+        interval = st.slider(f"Time Interval ({mode})",
+                             1,
+                             15,
+                             5,
+                             step=1,
+                             key=f"interval_{mode}")
         mode_settings[mode] = {
             "max_time": max_time,
             "interval": interval,
@@ -92,18 +89,19 @@ with st.sidebar:
 map_col1, map_col2 = st.columns([4, 1])
 with map_col1:
     map_placeholder.empty()
-    
+
 with map_col2:
-    map_style = st.radio("Map Style", ["Standard", "Washed out"], horizontal=True)
+    map_style = st.radio("Map Style", ["Standard", "Washed out"],
+                         horizontal=True)
 
 # Initialize mode settings in session state
 if 'mode_settings' not in st.session_state:
     st.session_state.mode_settings = {}
-        for idx, (mode, _, max_time) in enumerate(st.session_state.stored_results):
-            with st.expander(f"{mode} ({max_time}min)"):
-                if st.button(f"Remove {mode}", key=f"remove_{idx}"):
-                    st.session_state.stored_results.pop(idx)
-                    st.experimental_rerun()
+    for idx, (mode, _, max_time) in enumerate(st.session_state.stored_results):
+        with st.expander(f"{mode} ({max_time}min)"):
+            if st.button(f"Remove {mode}", key=f"remove_{idx}"):
+                st.session_state.stored_results.pop(idx)
+                st.experimental_rerun()
 
 # Create placeholders for the interface elements
 map_placeholder = st.empty()
@@ -121,23 +119,23 @@ try:
         total_calculations = len(selected_modes)
         for i, mode in enumerate(selected_modes):
             settings = mode_settings[mode]
-            calculator = TravelTimeCalculator(
-                location=location,
-                max_time=settings["max_time"],
-                mode=settings["api_mode"],
-                interval=settings["interval"],
-                use_geoapify=use_geoapify
-            )
+            calculator = TravelTimeCalculator(location=location,
+                                              max_time=settings["max_time"],
+                                              mode=settings["api_mode"],
+                                              interval=settings["interval"],
+                                              use_geoapify=use_geoapify)
 
             base_progress = i / total_calculations
             progress_step = 1 / total_calculations
 
             def mode_progress(message, percentage=None):
                 if percentage is not None:
-                    progress_bar.progress(base_progress + (percentage * progress_step))
+                    progress_bar.progress(base_progress +
+                                          (percentage * progress_step))
                 progress_text.text(f"{mode}: {message}")
 
-            results = calculator.calculate_travel_times(progress_callback=mode_progress)
+            results = calculator.calculate_travel_times(
+                progress_callback=mode_progress)
             new_results.append((mode, results, settings["max_time"]))
 
             if i == 0:
@@ -149,8 +147,7 @@ try:
         fig = visualizer.create_multi_mode_map(
             st.session_state.stored_results,
             st.session_state.center_location,
-            washed_out=(map_style == "Washed out")
-        )
+            washed_out=(map_style == "Washed out"))
 
         # Display the map
         map_placeholder.plotly_chart(fig, use_container_width=True)
@@ -163,8 +160,7 @@ try:
         if st.session_state.stored_results:
             fig = visualizer.create_multi_mode_map(
                 st.session_state.stored_results,
-                st.session_state.center_location
-            )
+                st.session_state.center_location)
             map_placeholder.plotly_chart(fig, use_container_width=True)
         else:
             # Show empty map container
