@@ -1,6 +1,7 @@
 import plotly.graph_objects as go
 import streamlit as st
 import numpy as np
+import os
 from typing import List
 
 class MapVisualizer:
@@ -93,7 +94,8 @@ class MapVisualizer:
 
         fig.update_layout(
             mapbox=dict(
-                style=map_style,  # Now washed_out will be the style name
+                accesstoken=os.environ.get('MAPBOX_ACCESS_TOKEN'),
+                style=map_style,
                 center=dict(lat=center[0], lon=center[1]),
                 zoom=11,
                 domain={'x': [0, 1], 'y': [0, 1]}
