@@ -1,11 +1,10 @@
-
 import os
 import requests
 from typing import Dict, List, Tuple
+import math
 
 class TravelTimeCalculator:
-    def __init__(self, location: str, max_time: int, mode: str, use_geoapify: bool = False):
-        """Initialize the calculator with location and parameters."""
+    def __init__(self, location: str, max_time: int, mode: str, interval: int = 5, use_geoapify: bool = False):
         if use_geoapify:
             self.api_key = os.environ.get('GEOAPIFY_API_KEY')
             if not self.api_key:
@@ -14,11 +13,11 @@ class TravelTimeCalculator:
             self.api_key = os.environ.get('MAPBOX_ACCESS_TOKEN')
             if not self.api_key:
                 raise ValueError("Mapbox access token not found in environment variables")
-        
-        self.use_geoapify = use_geoapify
 
+        self.use_geoapify = use_geoapify
         self.location = location
         self.max_time = max_time
+        self.interval = interval
         self.mode = self._convert_mode(mode)
         self.last_result = None
         self.center_location = self._geocode_location()
@@ -32,14 +31,14 @@ class TravelTimeCalculator:
                 "bicycling": "bicycle",
                 "public_transport": "public_transport"
             }
-            return mode_mapping.get(mode, "drive")
+            return mode_mapping.get(mode, mode)
         else:
             mode_mapping = {
                 "driving": "driving-traffic",
                 "walking": "walking",
                 "bicycling": "cycling"
             }
-            return mode_mapping.get(mode, "driving-traffic")
+            return mode_mapping.get(mode, mode)
 
     def _geocode_location(self) -> Tuple[float, float]:
         """Convert location string to coordinates using selected API."""
@@ -73,33 +72,19 @@ class TravelTimeCalculator:
             lng, lat = data["features"][0]["center"]
             return (lat, lng)
 
-    def _calculate_contour_intervals(self) -> List[int]:
-        """Calculate round number contour intervals based on max time."""
-        if self.max_time <= 20:
-            # For max times up to 20 minutes, use quarters
-            step = self.max_time // 4
-            return [step, step * 2, step * 3, self.max_time]
-        elif self.max_time <= 30:
-            # For max times up to 30 minutes
-            return [5, 10, 20, 30]
-        elif self.max_time <= 45:
-            # For max times up to 45 minutes
-            return [10, 20, 30, 45]
-        else:
-            # For max times up to 60 minutes
-            return [15, 30, 45, 60]
-
     def calculate_travel_times(self, progress_callback=None) -> Dict:
-        """Calculate isochrones using selected API."""
+        """Calculate isochrones using selected API with batched requests."""
         if progress_callback:
             progress_callback("Calculating isochrones...", 0.3)
 
-        contours_minutes = self._calculate_contour_intervals()
-        
+        # Generate all time intervals
+        times = list(range(self.interval, self.max_time + 1, self.interval))
+        features = []
+
         if self.use_geoapify:
-            # For Geoapify, we need to make separate requests for each contour
-            features = []
-            for minutes in contours_minutes:
+            # For Geoapify, make individual requests
+            total_requests = len(times)
+            for i, minutes in enumerate(times):
                 url = "https://api.geoapify.com/v1/isoline"
                 params = {
                     "lat": self.center_location[0],
@@ -109,52 +94,44 @@ class TravelTimeCalculator:
                     "range": str(minutes * 60),  # Convert to seconds
                     "apiKey": self.api_key
                 }
+
                 response = requests.get(url, params=params)
                 if response.status_code != 200:
                     raise ValueError(f"Error calculating isochrones: {response.text}")
+
                 data = response.json()
-                print(f"Geoapify response for {minutes} minutes:", data)
                 if data.get("features"):
                     for feature in data["features"]:
-                        # The Geoapify response structure is different from Mapbox
-                        # We need to ensure we're handling the coordinates correctly
-                        if feature["geometry"]["type"] == "Polygon":
-                            # Add the contour time to properties
-                            feature["properties"]["contour"] = minutes
-                            features.append(feature)
-                        elif feature["geometry"]["type"] == "MultiPolygon":
-                            # For MultiPolygon, create a feature for each polygon
-                            for polygon in feature["geometry"]["coordinates"]:
-                                new_feature = {
-                                    "type": "Feature",
-                                    "geometry": {
-                                        "type": "Polygon",
-                                        "coordinates": polygon
-                                    },
-                                    "properties": {
-                                        "contour": minutes,
-                                        **feature["properties"]
-                                    }
-                                }
-                                features.append(new_feature)
-            
-            self.last_result = {"type": "FeatureCollection", "features": features}
-            return self.last_result
+                        feature["properties"]["contour"] = minutes
+                        features.append(feature)
+
+                if progress_callback:
+                    progress_callback(f"Calculating contour {minutes} min", (i + 1) / total_requests)
+
         else:
-            url = f"https://api.mapbox.com/isochrone/v1/mapbox/{self.mode}/{self.center_location[1]},{self.center_location[0]}"
-            params = {
-                "contours_minutes": ",".join(map(str, contours_minutes)),
-                "polygons": "true",
-                "access_token": self.api_key,
-                "generalize": 0
-            }
+            # For Mapbox, batch requests in groups of 4
+            batches = [times[i:i + 4] for i in range(0, len(times), 4)]
+            total_batches = len(batches)
 
-        response = requests.get(url, params=params)
-        if response.status_code != 200:
-            raise ValueError(f"Error calculating isochrones: {response.text}")
+            for i, batch in enumerate(batches):
+                url = f"https://api.mapbox.com/isochrone/v1/mapbox/{self.mode}/{self.center_location[1]},{self.center_location[0]}"
+                params = {
+                    "contours_minutes": ",".join(map(str, batch)),
+                    "polygons": "true",
+                    "access_token": self.api_key,
+                    "generalize": 0
+                }
 
-        if progress_callback:
-            progress_callback("Completed!", 1.0)
+                response = requests.get(url, params=params)
+                if response.status_code != 200:
+                    raise ValueError(f"Error calculating isochrones: {response.text}")
 
-        self.last_result = response.json()
+                data = response.json()
+                if data.get("features"):
+                    features.extend(data["features"])
+
+                if progress_callback:
+                    progress_callback(f"Calculating batch {i+1}/{total_batches}", (i + 1) / total_batches)
+
+        self.last_result = {"type": "FeatureCollection", "features": features}
         return self.last_result

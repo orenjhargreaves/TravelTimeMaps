@@ -1,9 +1,9 @@
+
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from travel_time_calculator import TravelTimeCalculator
 from map_visualizer import MapVisualizer
-import googlemaps
 
 # Page configuration
 st.set_page_config(
@@ -16,8 +16,6 @@ if 'calculator' not in st.session_state:
     st.session_state.calculator = None
 if 'visualizer' not in st.session_state:
     st.session_state.visualizer = None
-if 'show_raw_data' not in st.session_state:
-    st.session_state.show_raw_data = False
 
 # Main title
 st.title("Travel Time Contour Map")
@@ -33,43 +31,54 @@ with st.sidebar:
         help="Enter an address or landmark"
     )
 
-    # Maximum travel time setting
-    max_time = st.slider(
-        "Maximum Travel Time (minutes)",
-        5,
-        60,
-        30,  # Default to 30 minutes
-        step=5,
-        help="Maximum travel time from the starting point"
-    )
-
     # API selection
     use_geoapify = st.checkbox("Use Geoapify API (includes public transport)", False)
     
     # Transportation mode mapping
     if use_geoapify:
-        mode_mapping = {
-            "Transit": "transit",
-            "Approximate Transit": "approximated_transit",
+        available_modes = {
             "Cycling": "bicycle",
             "Driving": "drive",
-            "Walking": "walk"
+            "Walking": "walk",
+            "Transit": "transit",
+            "Approximate Transit": "approximated_transit"
         }
     else:
-        mode_mapping = {
-            "Cycling": "bicycling",  # Default mode first
+        available_modes = {
+            "Cycling": "bicycling",
             "Driving": "driving",
             "Walking": "walking"
         }
 
-    # Transportation mode
-    display_mode = st.selectbox(
-        "Transportation Mode",
-        list(mode_mapping.keys()),
-        index=0,  # Default to Cycling
-        format_func=lambda x: x
+    # Mode selection (multiple)
+    selected_modes = st.multiselect(
+        "Transportation Modes",
+        list(available_modes.keys()),
+        default=["Cycling"],
+        help="Select one or more transportation modes"
     )
-    mode = mode_mapping[display_mode]
+
+    # Settings for each selected mode
+    mode_settings = {}
+    for mode in selected_modes:
+        st.subheader(f"{mode} Settings")
+        max_time = st.slider(
+            f"Maximum Travel Time ({mode})",
+            5, 60, 30,
+            step=5,
+            key=f"max_time_{mode}"
+        )
+        interval = st.slider(
+            f"Time Interval ({mode})",
+            1, 15, 5,
+            step=1,
+            key=f"interval_{mode}"
+        )
+        mode_settings[mode] = {
+            "max_time": max_time,
+            "interval": interval,
+            "api_mode": available_modes[mode]
+        }
 
     # Calculate button
     calculate = st.button("Calculate Contours")
@@ -81,73 +90,55 @@ with progress_container:
     progress_bar = st.progress(0)
     progress_text = st.empty()
 
-# Create container for the toggle button
-toggle_container = st.container()
-
 # Main content area
 try:
     if calculate:
-        # Initialize calculator and visualizer with new parameters
-        calculator = TravelTimeCalculator(
-            location=location,
-            max_time=max_time,
-            mode=mode,
-            use_geoapify=use_geoapify
-        )
         visualizer = MapVisualizer()
-
-        # Add progress update function
+        all_results = []
+        
         def update_progress(message, percentage=None):
             if percentage is not None:
                 progress_bar.progress(percentage)
             progress_text.text(message)
 
-        # Calculate travel times
-        travel_times = calculator.calculate_travel_times(progress_callback=update_progress)
-
-        # Store in session state
-        st.session_state.calculator = calculator
-        st.session_state.visualizer = visualizer
+        total_calculations = len(selected_modes)
+        for i, mode in enumerate(selected_modes):
+            settings = mode_settings[mode]
+            calculator = TravelTimeCalculator(
+                location=location,
+                max_time=settings["max_time"],
+                mode=settings["api_mode"],
+                interval=settings["interval"],
+                use_geoapify=use_geoapify
+            )
+            
+            base_progress = i / total_calculations
+            progress_step = 1 / total_calculations
+            
+            def mode_progress(message, percentage=None):
+                if percentage is not None:
+                    update_progress(f"{mode}: {message}", base_progress + (percentage * progress_step))
+                else:
+                    update_progress(f"{mode}: {message}", None)
+            
+            results = calculator.calculate_travel_times(progress_callback=mode_progress)
+            all_results.append((mode, results, settings["max_time"]))
+            
+            if i == 0:
+                st.session_state.center_location = calculator.center_location
 
         # Create visualization
-        fig = visualizer.create_contour_map(
-            travel_times,
-            calculator.center_location,
-            60,
-            show_raw_data=st.session_state.show_raw_data
+        fig = visualizer.create_multi_mode_map(
+            all_results,
+            st.session_state.center_location
         )
 
-        # Display the map in the placeholder
-        map_placeholder.plotly_chart(fig, use_container_width=True, key="map_new")
-        # Clear progress indicators after completion
+        # Display the map
+        map_placeholder.plotly_chart(fig, use_container_width=True)
+        
+        # Clear progress indicators
         progress_text.empty()
         progress_bar.empty()
-
-    elif st.session_state.calculator and st.session_state.visualizer:
-        # Update visualization with current toggle state
-        fig = st.session_state.visualizer.create_contour_map(
-            st.session_state.calculator.last_result,
-            st.session_state.calculator.center_location,
-            60,
-            show_raw_data=st.session_state.show_raw_data
-        )
-        # Display in placeholder with unique key
-        map_placeholder.plotly_chart(fig, use_container_width=True, key="map_existing")
-
-    # Show toggle only when map is displayed
-    if st.session_state.calculator and st.session_state.visualizer:
-        with toggle_container:
-            # Toggle for raw data points
-            show_raw_data = st.checkbox(
-                "Show Raw Data Points",
-                value=st.session_state.show_raw_data,
-                help="Toggle between contour map and raw data points"
-            )
-
-            # Update session state if toggle changes
-            if show_raw_data != st.session_state.show_raw_data:
-                st.session_state.show_raw_data = show_raw_data
-                st.rerun()
 
     else:
         # Show empty map container

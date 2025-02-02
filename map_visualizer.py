@@ -1,88 +1,101 @@
 
 import plotly.graph_objects as go
-from typing import Dict, Tuple
+from typing import Dict, List, Tuple
 
 class MapVisualizer:
     def __init__(self):
-        self.opacity = 1.0
+        self.mode_colors = {
+            "Cycling": (0, 255, 0),  # Green
+            "Walking": (255, 0, 0),  # Red
+            "Driving": (0, 0, 255),  # Blue
+            "Transit": (255, 165, 0),  # Orange
+            "Approximate Transit": (255, 69, 0)  # Red-Orange
+        }
 
-    def _get_color(self, time: int, max_time: int) -> str:
-        """Calculate color based on time proportion"""
-        color_val = time / max_time
-        if color_val <= 0:
-            return 'rgb(0,255,0)'  # Green
-        elif color_val >= 1:
-            return 'rgb(255,0,0)'  # Red
+    def _get_color(self, mode: str, time: int, max_time: int, base_opacity: float = 0.6) -> str:
+        """Calculate color based on mode and time proportion with opacity"""
+        if mode not in self.mode_colors:
+            r, g, b = 128, 128, 128  # Default gray for unknown modes
         else:
-            if color_val <= 0.5:
-                g = 255
-                r = int(510 * color_val)
-            else:
-                r = 255
-                g = int(510 * (1 - color_val))
-            return f'rgb({r},{g},0)'
+            r, g, b = self.mode_colors[mode]
 
-    def create_contour_map(self, data: Dict, center: Tuple[float, float], max_time: int, show_raw_data: bool = False) -> go.Figure:
-        if not data or "features" not in data:
+        # Calculate opacity based on time (longer time = more opaque)
+        opacity = base_opacity + (0.4 * (time / max_time))
+        
+        return f'rgba({r},{g},{b},{opacity})'
+
+    def create_multi_mode_map(self, results: List[Tuple[str, Dict, int]], center: Tuple[float, float]) -> go.Figure:
+        """Create a map with multiple transport mode contours."""
+        if not results:
             raise ValueError("No isochrone data available for visualization")
 
         fig = go.Figure()
 
-        # Add colorbar
-        time_intervals = [feature["properties"]["contour"] for feature in data["features"]]
-        colorscale = [[i/(len(time_intervals)-1), self._get_color(t, max_time)] for i, t in enumerate(time_intervals)]
-        
-        fig.add_scattermapbox(
-            lat=[None], lon=[None],
-            mode='markers',
-            marker=dict(
-                size=0,
-                colorscale=colorscale,
-                showscale=True,
-                cmin=0,
-                cmax=max_time,
-                colorbar=dict(
-                    title='Travel Time (minutes)',
-                    tickmode='array',
-                    tickvals=time_intervals,
-                    ticktext=[f'{i}min' for i in time_intervals],
-                    thickness=15,
-                    len=0.9,
-                    x=1.02
-                )
-            ),
-            showlegend=False
-        )
+        # Add contour lines for each mode from largest to smallest time
+        for mode, data, max_time in results:
+            if not data.get("features"):
+                continue
 
-        # Plot contour lines from largest to smallest
-        for feature in reversed(data["features"]):
-            time = feature["properties"]["contour"]
-            coordinates = feature["geometry"]["coordinates"][0]
-            color = self._get_color(time, max_time)
+            # Sort features by contour time (descending)
+            features = sorted(data["features"], 
+                           key=lambda x: x["properties"]["contour"],
+                           reverse=True)
 
-            # Add contour line
+            # Create a separate trace for the colorbar
             fig.add_scattermapbox(
-                lat=[coord[1] for coord in coordinates],
-                lon=[coord[0] for coord in coordinates],
-                mode='lines',
-                line=dict(
-                    width=3,
-                    color=color
+                lat=[None],
+                lon=[None],
+                mode='markers',
+                marker=dict(
+                    size=0,
+                    colorscale=[[i/(len(features)-1), 
+                               self._get_color(mode, f["properties"]["contour"], max_time)] 
+                              for i, f in enumerate(features)],
+                    showscale=True,
+                    cmin=0,
+                    cmax=max_time,
+                    colorbar=dict(
+                        title=f'{mode} Time (minutes)',
+                        tickmode='array',
+                        tickvals=[f["properties"]["contour"] for f in features],
+                        ticktext=[f'{i}min' for i in [f["properties"]["contour"] for f in features]],
+                        thickness=15,
+                        len=0.9,
+                        x=1.02 + (0.05 * results.index((mode, data, max_time)))
+                    )
                 ),
-                showlegend=False,
-                hoverinfo='text',
-                hovertext=f'{time} min',
-                name=f'{time} min'
+                name=mode,
+                showlegend=False
             )
+
+            # Add contour lines
+            for feature in features:
+                time = feature["properties"]["contour"]
+                coordinates = feature["geometry"]["coordinates"][0]
+                color = self._get_color(mode, time, max_time)
+
+                fig.add_scattermapbox(
+                    lat=[coord[1] for coord in coordinates],
+                    lon=[coord[0] for coord in coordinates],
+                    mode='lines',
+                    line=dict(
+                        width=3,
+                        color=color
+                    ),
+                    name=f'{mode} - {time} min',
+                    hoverinfo='text',
+                    hovertext=f'{mode}: {time} min',
+                    showlegend=True
+                )
 
         # Add center point
         fig.add_scattermapbox(
             lat=[center[0]],
             lon=[center[1]],
             mode='markers',
-            marker=dict(size=15, color='blue', symbol='star'),
+            marker=dict(size=15, color='purple', symbol='star'),
             name='Starting Point',
-            showlegend=False
+            showlegend=True
         )
 
         fig.update_layout(
@@ -92,8 +105,13 @@ class MapVisualizer:
                 zoom=11
             ),
             height=800,
-            showlegend=False,
-            margin=dict(l=0, r=0, t=30, b=0)
+            margin=dict(l=0, r=0, t=30, b=0),
+            legend=dict(
+                yanchor="top",
+                y=0.99,
+                xanchor="left",
+                x=0.01
+            )
         )
 
         return fig
