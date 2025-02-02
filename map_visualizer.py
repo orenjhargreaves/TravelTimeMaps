@@ -69,17 +69,17 @@ class MapVisualizer:
         fig = go.Figure()
 
         # Add contour lines for each mode from largest to smallest time
-        for mode, data, max_time in results:
-            if not data.get("features"):
+        for contour in contours:
+            if not contour.features or not contour.features.get("features"):
                 continue
 
             # Sort features by contour time (descending)
-            features = sorted(data["features"], 
+            features = sorted(contour.features["features"], 
                            key=lambda x: x["properties"]["contour"],
                            reverse=True)
 
             # Create a separate trace for the colorbar
-            offset = 0.15 * results.index((mode, data, max_time))
+            offset = 0.15 * contours.index(contour)
             fig.add_scattermapbox(
                 lat=[None],
                 lon=[None],
@@ -94,13 +94,13 @@ class MapVisualizer:
                     cmax=max_time,
                     colorbar=dict(
                         title=dict(
-                            text=f"{mode}",
+                            text=f"{contour.mode}",
                             side="top"
                         ),
                         x=1.02 + offset,  # Stack horizontally
                         y=0,  # Lower base position
                         yanchor='bottom',  # Anchor at bottom
-                        len=0.06 + 0.75 * (max_time / 60),  # Scale length by max time
+                        len=0.06 + 0.75 * (contour.max_time / 60),  # Scale length by max time
                         thickness=20,
                         orientation='v',
                         bgcolor='rgba(255,255,255,0.9)',
