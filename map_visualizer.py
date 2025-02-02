@@ -55,20 +55,39 @@ class MapVisualizer:
                            key=lambda x: x["properties"]["contour"],
                            reverse=True)
 
-            # Get first feature's coordinates for legend
-            first_coordinates = features[0]["geometry"]["coordinates"][0]
-            
-            # Add trace for contour lines with legend
+            # Create a separate trace for the colorbar
+            offset = 0.15 * results.index((mode, data, max_time))
             fig.add_scattermapbox(
-                lat=[first_coordinates[0][1]],
-                lon=[first_coordinates[0][0]],
-                mode='lines',
-                line=dict(
-                    width=3,
-                    color=self._get_color(mode, max_time, max_time)
+                lat=[None],
+                lon=[None],
+                mode='markers',
+                marker=dict(
+                    size=0,
+                    colorscale=[[i/(len(features)-1), 
+                               self._get_color(mode, f["properties"]["contour"], max_time)] 
+                              for i, f in enumerate(features)],
+                    showscale=True,
+                    cmin=0,
+                    cmax=max_time,
+                    colorbar=dict(
+                        title=dict(
+                            text=f"{mode}",
+                            side="top"
+                        ),
+                        x=1.02 + offset,  # Stack horizontally
+                        y=0.5,
+                        len=0.75,
+                        thickness=20,
+                        orientation='v',
+                        bgcolor='rgba(255,255,255,0.9)',
+                        tickmode='array',
+                        tickvals=[f["properties"]["contour"] for f in features],
+                        ticktext=[f'{i}min' for i in [f["properties"]["contour"] for f in features]],
+                        tickfont=dict(size=10),
+                        titlefont=dict(size=12)
+                    )
                 ),
-                name=f'{mode} ({max_time}min)',
-                showlegend=True
+                showlegend=False
             )
 
             # Add contour lines
