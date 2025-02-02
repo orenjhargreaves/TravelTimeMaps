@@ -29,13 +29,18 @@ with st.sidebar:
     
     if 'active_tabs' not in st.session_state:
         st.session_state.active_tabs = []
+        
+    if 'selected_tab' not in st.session_state:
+        st.session_state.selected_tab = 0
     
     stored_tabs = st.session_state.active_tabs
-    tabs = ["+ New"] + stored_tabs
+    tabs = stored_tabs + ["+ New"]
     current_tab = st.tabs(tabs)
 
     mode_settings = {}
-    with current_tab[0]:  # Always use first tab for new contours
+    
+    # Handle the New tab (always last)
+    if st.session_state.selected_tab == len(tabs) - 1:
         # Location input
         location = st.text_input("Starting Location",
                                  "Buckingham Palace, London",
@@ -76,8 +81,15 @@ with st.sidebar:
             "api_mode": available_modes[selected_mode]
         }
 
-    # Calculate button
-    calculate = st.button("Add Contour")
+    # Add/Delete button based on tab
+    if st.session_state.selected_tab == len(tabs) - 1:  # New tab
+        calculate = st.button("Add Contour")
+    else:
+        if st.button("Delete Contour"):
+            st.session_state.stored_results.pop(st.session_state.selected_tab)
+            st.session_state.active_tabs.pop(st.session_state.selected_tab)
+            st.session_state.selected_tab = len(tabs) - 1  # Select New tab
+            st.experimental_rerun()
 
 # Create placeholders for the interface elements
 map_placeholder = st.empty()
@@ -147,8 +159,10 @@ try:
         if new_tab_name not in st.session_state.active_tabs:
             st.session_state.active_tabs.insert(0, new_tab_name)  # Insert at beginning
         
-        # Add new results to beginning of list
-        st.session_state.stored_results = new_results + st.session_state.stored_results
+        # Add new results to list
+        st.session_state.stored_results = st.session_state.stored_results + new_results
+        # Update selected tab to the newly added contour
+        st.session_state.selected_tab = len(st.session_state.stored_results) - 1
         
         # Create visualization
         st.session_state.current_fig = visualizer.create_multi_mode_map(
