@@ -29,10 +29,11 @@ with st.sidebar:
     
     stored_tabs = [f"{mode} ({settings['max_time']}min)" 
                    for mode, settings in st.session_state.mode_settings.items()]
-    tabs = ["+ New"] + stored_tabs
+    tabs = stored_tabs + ["+ New"]
     current_tab = st.tabs(tabs)
 
     mode_settings = {}
+    tab_index = len(stored_tabs)  # Index of the "+ New" tab
     with current_tab[tab_index]:
         # Location input
         location = st.text_input("Starting Location",
