@@ -107,14 +107,13 @@ class MapVisualizer:
                     showlegend=False
                 )
 
-        # Add center point
+        # Add center point (without legend)
         fig.add_scattermapbox(
             lat=[center[0]],
             lon=[center[1]],
             mode='markers',
             marker=dict(size=15, color='purple', symbol='star'),
-            name='Starting Point',
-            showlegend=True
+            showlegend=False
         )
 
         fig.update_layout(
@@ -125,12 +124,7 @@ class MapVisualizer:
             ),
             height=800,
             margin=dict(l=0, r=0, t=30, b=0),
-            legend=dict(
-                yanchor="top",
-                y=0.99,
-                xanchor="left",
-                x=0.01
-            )
+            showlegend=False
         )
 
         return fig

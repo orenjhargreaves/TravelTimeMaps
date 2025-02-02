@@ -102,12 +102,11 @@ for idx, tab in enumerate(active_tab[1:], 1):
             st.experimental_rerun()
 
 # Create placeholders for the interface elements
-with col1:
-    map_placeholder = st.empty()
-    progress_container = st.container()
-    with progress_container:
-        progress_bar = st.progress(0)
-        progress_text = st.empty()
+map_placeholder = st.empty()
+progress_container = st.container()
+with progress_container:
+    progress_bar = st.progress(0)
+    progress_text = st.empty()
 
 # Main content area
 try:
