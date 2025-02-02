@@ -145,7 +145,7 @@ try:
     if st.session_state.contours:
         current_fig = visualizer.create_multi_mode_map(
             st.session_state.contours,
-            map_style=map_style
+            washed_out=(map_style == "Washed out")
         )
         map_container.plotly_chart(current_fig, use_container_width=True)
     else:
