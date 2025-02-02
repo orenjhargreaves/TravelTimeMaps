@@ -1,9 +1,10 @@
+
 import os
 import requests
 from typing import Dict, List, Tuple
 
 class TravelTimeCalculator:
-    def __init__(self, location: str, max_time: int, time_step: int, mode: str, radius_km: float = 5, point_spacing_meters: float = 500):
+    def __init__(self, location: str, max_time: int, mode: str):
         """Initialize the calculator with location and parameters."""
         self.api_key = os.environ.get('MAPBOX_ACCESS_TOKEN')
         if not self.api_key:
@@ -11,7 +12,6 @@ class TravelTimeCalculator:
 
         self.location = location
         self.max_time = max_time
-        self.time_step = time_step
         self.mode = self._convert_mode(mode)
         self.last_result = None
         self.center_location = self._geocode_location()
@@ -44,14 +44,28 @@ class TravelTimeCalculator:
         lng, lat = data["features"][0]["center"]
         return (lat, lng)
 
+    def _calculate_contour_intervals(self) -> List[int]:
+        """Calculate round number contour intervals based on max time."""
+        if self.max_time <= 20:
+            # For max times up to 20 minutes, use quarters
+            step = self.max_time // 4
+            return [step, step * 2, step * 3, self.max_time]
+        elif self.max_time <= 30:
+            # For max times up to 30 minutes
+            return [5, 10, 20, 30]
+        elif self.max_time <= 45:
+            # For max times up to 45 minutes
+            return [10, 20, 30, 45]
+        else:
+            # For max times up to 60 minutes
+            return [15, 30, 45, 60]
+
     def calculate_travel_times(self, progress_callback=None) -> Dict:
         """Calculate isochrones using Mapbox Isochrone API."""
         if progress_callback:
             progress_callback("Calculating isochrones...", 0.3)
 
-        # Create 4 evenly spaced contours between 0 and max_time
-        contours_minutes = [int(self.max_time * i / 3) for i in range(4)]
-        contours_minutes = [t for t in contours_minutes if t > 0]  # Remove 0 if present
+        contours_minutes = self._calculate_contour_intervals()
         url = f"https://api.mapbox.com/isochrone/v1/mapbox/{self.mode}/{self.center_location[1]},{self.center_location[0]}"
 
         params = {

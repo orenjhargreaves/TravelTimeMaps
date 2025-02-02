@@ -33,24 +33,14 @@ with st.sidebar:
         help="Enter an address or landmark"
     )
 
-    # Travel distance setting
-    radius_km = st.slider(
-        "Maximum Travel Distance (km)",
-        1,
-        50,
-        15,  # Default to 15km
-        step=1,
-        help="Maximum radius to analyze around the starting point"
-    )
-
-    # Update point density to use meters between points
-    point_spacing_meters = st.slider(
-        "Distance Between Points (meters)",
-        100,
-        1000, 
-        500,  # Default to 500m
-        step=100,
-        help="Distance between sampling points. Lower values give more detailed results but take longer to calculate"
+    # Maximum travel time setting
+    max_time = st.slider(
+        "Maximum Travel Time (minutes)",
+        5,
+        60,
+        30,  # Default to 30 minutes
+        step=5,
+        help="Maximum travel time from the starting point"
     )
 
     # Transportation mode mapping
@@ -88,11 +78,8 @@ try:
         # Initialize calculator and visualizer with new parameters
         calculator = TravelTimeCalculator(
             location=location,
-            max_time=45,
-            time_step=15,
-            mode=mode,
-            radius_km=radius_km,
-            point_spacing_meters=point_spacing_meters
+            max_time=max_time,
+            mode=mode
         )
         visualizer = MapVisualizer()
 
