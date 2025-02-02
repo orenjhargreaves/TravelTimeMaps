@@ -28,18 +28,18 @@ class MapVisualizer:
         # Get custom color if set
         try:
             color_index = next((i for i, (m, _, t) in enumerate(self.results) if m == mode and t == max_time), 0)
-            color_key = f"color_choice_{color_index}"
-            if color_key in st.session_state:
+            if f"color_{color_index}" in st.session_state:
                 selected_color = st.session_state[f"color_{color_index}"]
                 if selected_color != "Default":
                     color_options = {
-                    "Blue": ((135, 206, 235), (0, 0, 139)),
-                    "Green": ((144, 238, 144), (34, 139, 34)),
-                    "Red": ((255, 182, 193), (139, 0, 0)),
-                    "Orange": ((255, 218, 185), (210, 105, 30)),
-                    "Purple": ((230, 190, 255), (128, 0, 128))
-                }
-                start_color, end_color = color_options[st.session_state[color_key]]
+                        "Blue": ((135, 206, 235), (0, 0, 139)),
+                        "Green": ((144, 238, 144), (34, 139, 34)),
+                        "Red": ((255, 182, 193), (139, 0, 0)),
+                        "Orange": ((255, 218, 185), (210, 105, 30)),
+                        "Purple": ((230, 190, 255), (128, 0, 128))
+                    }
+                    start_color, end_color = color_options[selected_color]
+                    return f'rgba({start_color[0]},{start_color[1]},{start_color[2]},{base_opacity})'
         except Exception:
             if mode not in mode_color_ranges:
                 return f'rgba(128,128,128,{base_opacity})'
