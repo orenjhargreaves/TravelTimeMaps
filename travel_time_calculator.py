@@ -81,17 +81,21 @@ class TravelTimeCalculator:
         times = list(range(self.interval, self.max_time + 1, self.interval))
         features = []
 
+        # Batch requests in groups of 4 for both APIs
+        batches = [times[i:i + 4] for i in range(0, len(times), 4)]
+        total_batches = len(batches)
+
         if self.use_geoapify:
-            # For Geoapify, make individual requests
-            total_requests = len(times)
-            for i, minutes in enumerate(times):
+            for i, batch in enumerate(batches):
+                # Convert minutes to seconds for Geoapify
+                ranges = [str(minutes * 60) for minutes in batch]
                 url = "https://api.geoapify.com/v1/isoline"
                 params = {
                     "lat": self.center_location[0],
                     "lon": self.center_location[1],
                     "type": "time",
                     "mode": self.mode,
-                    "range": str(minutes * 60),  # Convert to seconds
+                    "range": "|".join(ranges),  # Join ranges with pipe for multiple contours
                     "apiKey": self.api_key
                 }
 
@@ -101,17 +105,31 @@ class TravelTimeCalculator:
 
                 data = response.json()
                 if data.get("features"):
-                    for feature in data["features"]:
-                        feature["properties"]["contour"] = minutes
-                        features.append(feature)
+                    for idx, feature in enumerate(data["features"]):
+                        # Ensure we're setting the correct contour time
+                        feature["properties"]["contour"] = batch[idx]
+                        # Convert MultiPolygon to individual Polygons if needed
+                        if feature["geometry"]["type"] == "MultiPolygon":
+                            for polygon in feature["geometry"]["coordinates"]:
+                                new_feature = {
+                                    "type": "Feature",
+                                    "geometry": {
+                                        "type": "Polygon",
+                                        "coordinates": polygon
+                                    },
+                                    "properties": {
+                                        "contour": batch[idx],
+                                        **feature["properties"]
+                                    }
+                                }
+                                features.append(new_feature)
+                        else:
+                            features.append(feature)
 
                 if progress_callback:
-                    progress_callback(f"Calculating contour {minutes} min", (i + 1) / total_requests)
-
+                    progress_callback(f"Calculating batch {i+1}/{total_batches}", (i + 1) / total_batches)
         else:
-            # For Mapbox, batch requests in groups of 4
-            batches = [times[i:i + 4] for i in range(0, len(times), 4)]
-            total_batches = len(batches)
+            # For Mapbox, continue with existing batch implementation
 
             for i, batch in enumerate(batches):
                 url = f"https://api.mapbox.com/isochrone/v1/mapbox/{self.mode}/{self.center_location[1]},{self.center_location[0]}"
