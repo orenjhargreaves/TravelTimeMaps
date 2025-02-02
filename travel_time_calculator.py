@@ -73,29 +73,25 @@ class TravelTimeCalculator:
             return (lat, lng)
 
     def calculate_travel_times(self, progress_callback=None) -> Dict:
-        """Calculate isochrones using selected API with batched requests."""
+        """Calculate isochrones using selected API with single requests."""
         if progress_callback:
             progress_callback("Calculating isochrones...", 0.3)
 
         # Generate all time intervals
         times = list(range(self.interval, self.max_time + 1, self.interval))
         features = []
-
-        # Batch requests in groups of 4 for both APIs
-        batches = [times[i:i + 4] for i in range(0, len(times), 4)]
-        total_batches = len(batches)
+        total_times = len(times)
 
         if self.use_geoapify:
-            for i, batch in enumerate(batches):
+            for i, time in enumerate(times):
                 # Convert minutes to seconds for Geoapify
-                ranges = [str(minutes * 60) for minutes in batch]
                 url = "https://api.geoapify.com/v1/isoline"
                 params = {
                     "lat": self.center_location[0],
                     "lon": self.center_location[1],
                     "type": "time",
                     "mode": self.mode,
-                    "range": ranges[0],  # Geoapify only accepts single range values
+                    "range": str(time * 60),  # Geoapify only accepts single range values
                     "apiKey": self.api_key
                 }
 
@@ -105,10 +101,8 @@ class TravelTimeCalculator:
 
                 data = response.json()
                 if data.get("features"):
-                    for idx, feature in enumerate(data["features"]):
-                        # Ensure we're setting the correct contour time
-                        feature["properties"]["contour"] = batch[idx]
-                        # Convert MultiPolygon to individual Polygons if needed
+                    for feature in data["features"]:
+                        feature["properties"]["contour"] = time
                         if feature["geometry"]["type"] == "MultiPolygon":
                             for polygon in feature["geometry"]["coordinates"]:
                                 new_feature = {
@@ -118,7 +112,7 @@ class TravelTimeCalculator:
                                         "coordinates": polygon
                                     },
                                     "properties": {
-                                        "contour": batch[idx],
+                                        "contour": time,
                                         **feature["properties"]
                                     }
                                 }
@@ -127,14 +121,13 @@ class TravelTimeCalculator:
                             features.append(feature)
 
                 if progress_callback:
-                    progress_callback(f"Calculating batch {i+1}/{total_batches}", (i + 1) / total_batches)
+                    progress_callback(f"Calculating {time} min contour", (i + 1) / total_times)
         else:
             # For Mapbox, continue with existing batch implementation
-
-            for i, batch in enumerate(batches):
+            for i, time in enumerate(times):
                 url = f"https://api.mapbox.com/isochrone/v1/mapbox/{self.mode}/{self.center_location[1]},{self.center_location[0]}"
                 params = {
-                    "contours_minutes": ",".join(map(str, batch)),
+                    "contours_minutes": str(time),
                     "polygons": "true",
                     "access_token": self.api_key,
                     "generalize": 0
@@ -149,7 +142,8 @@ class TravelTimeCalculator:
                     features.extend(data["features"])
 
                 if progress_callback:
-                    progress_callback(f"Calculating batch {i+1}/{total_batches}", (i + 1) / total_batches)
+                    progress_callback(f"Calculating {time} min contour", (i + 1) / total_times)
+
 
         self.last_result = {"type": "FeatureCollection", "features": features}
         return self.last_result

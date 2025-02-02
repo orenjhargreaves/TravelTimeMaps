@@ -13,14 +13,28 @@ class MapVisualizer:
         }
 
     def _get_color(self, mode: str, time: int, max_time: int, base_opacity: float = 0.6) -> str:
-        """Calculate color based on mode and time proportion with opacity"""
-        if mode not in self.mode_colors:
-            r, g, b = 128, 128, 128  # Default gray for unknown modes
-        else:
-            r, g, b = self.mode_colors[mode]
+        """Calculate color based on mode and time proportion with hue transition"""
+        # Base colors for each mode (start and end colors)
+        mode_color_ranges = {
+            "Cycling": ((144, 238, 144), (34, 139, 34)),    # Light green to dark green
+            "Walking": ((255, 182, 193), (139, 0, 0)),      # Light red to dark red
+            "Driving": ((135, 206, 235), (0, 0, 139)),      # Light blue to dark blue
+            "Transit": ((255, 218, 185), (210, 105, 30)),   # Light orange to dark orange
+            "Approximate Transit": ((255, 192, 203), (178, 34, 34))  # Light pink to dark red
+        }
 
-        # Calculate opacity based on time (shorter time = more opaque)
-        opacity = base_opacity + (0.4 * (1 - time / max_time))
+        if mode not in mode_color_ranges:
+            return f'rgba(128,128,128,{base_opacity})'
+
+        start_color, end_color = mode_color_ranges[mode]
+        progress = time / max_time
+
+        # Interpolate between colors
+        r = int(start_color[0] + (end_color[0] - start_color[0]) * progress)
+        g = int(start_color[1] + (end_color[1] - start_color[1]) * progress)
+        b = int(start_color[2] + (end_color[2] - start_color[2]) * progress)
+        
+        opacity = base_opacity + (0.4 * (1 - progress))
         
         return f'rgba({r},{g},{b},{opacity})'
 
