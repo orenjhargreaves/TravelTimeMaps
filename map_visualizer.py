@@ -1,5 +1,6 @@
 
 import plotly.graph_objects as go
+import streamlit as st
 from typing import Dict, List, Tuple
 
 class MapVisualizer:
@@ -28,8 +29,10 @@ class MapVisualizer:
         try:
             color_index = next((i for i, (m, _, t) in enumerate(self.results) if m == mode and t == max_time), 0)
             color_key = f"color_choice_{color_index}"
-            if hasattr(st.session_state, color_key) and st.session_state[color_key] != "Default":
-                color_options = {
+            if color_key in st.session_state:
+                selected_color = st.session_state[f"color_{color_index}"]
+                if selected_color != "Default":
+                    color_options = {
                     "Blue": ((135, 206, 235), (0, 0, 139)),
                     "Green": ((144, 238, 144), (34, 139, 34)),
                     "Red": ((255, 182, 193), (139, 0, 0)),
