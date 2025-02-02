@@ -1,14 +1,26 @@
+
 import plotly.graph_objects as go
 from typing import Dict, Tuple
 
 class MapVisualizer:
     def __init__(self):
-        self.colorscale = [
-            [0, 'rgb(0,255,0)'],     # Green for shortest times
-            [0.5, 'rgb(255,255,0)'], # Yellow for medium times
-            [1, 'rgb(255,0,0)']      # Red for longest times
-        ]
-        self.opacity = 0.5
+        self.opacity = 1.0
+
+    def _get_color(self, time: int, max_time: int) -> str:
+        """Calculate color based on time proportion"""
+        color_val = time / max_time
+        if color_val <= 0:
+            return 'rgb(0,255,0)'  # Green
+        elif color_val >= 1:
+            return 'rgb(255,0,0)'  # Red
+        else:
+            if color_val <= 0.5:
+                g = 255
+                r = int(510 * color_val)
+            else:
+                r = 255
+                g = int(510 * (1 - color_val))
+            return f'rgb({r},{g},0)'
 
     def create_contour_map(self, data: Dict, center: Tuple[float, float], max_time: int, show_raw_data: bool = False) -> go.Figure:
         if not data or "features" not in data:
@@ -18,12 +30,14 @@ class MapVisualizer:
 
         # Add colorbar
         time_intervals = [feature["properties"]["contour"] for feature in data["features"]]
+        colorscale = [[i/(len(time_intervals)-1), self._get_color(t, max_time)] for i, t in enumerate(time_intervals)]
+        
         fig.add_scattermapbox(
             lat=[None], lon=[None],
             mode='markers',
             marker=dict(
                 size=0,
-                colorscale=self.colorscale,
+                colorscale=colorscale,
                 showscale=True,
                 cmin=0,
                 cmax=max_time,
@@ -40,34 +54,21 @@ class MapVisualizer:
             showlegend=False
         )
 
-        # Plot isochrones from largest to smallest
+        # Plot contour lines from largest to smallest
         for feature in reversed(data["features"]):
             time = feature["properties"]["contour"]
             coordinates = feature["geometry"]["coordinates"][0]
+            color = self._get_color(time, max_time)
 
-            # Calculate color based on time
-            color_val = time / max_time
-            if color_val <= 0:
-                color = f'rgba(0,255,0,{self.opacity})'
-            elif color_val >= 1:
-                color = f'rgba(255,0,0,{self.opacity})'
-            else:
-                if color_val <= 0.5:
-                    g = 255
-                    r = int(510 * color_val)
-                else:
-                    r = 255
-                    g = int(510 * (1 - color_val))
-                color = f'rgba({r},{g},0,{self.opacity})'
-
-            # Add polygon
+            # Add contour line
             fig.add_scattermapbox(
                 lat=[coord[1] for coord in coordinates],
                 lon=[coord[0] for coord in coordinates],
                 mode='lines',
-                fill='toself',
-                fillcolor=color,
-                line=dict(width=0),
+                line=dict(
+                    width=3,
+                    color=color
+                ),
                 showlegend=False,
                 hoverinfo='text',
                 hovertext=f'{time} min',
