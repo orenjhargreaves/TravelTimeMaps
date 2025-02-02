@@ -32,6 +32,8 @@ with st.sidebar:
         
     if 'selected_tab' not in st.session_state:
         st.session_state.selected_tab = 0
+    if 'location' not in st.session_state:
+        st.session_state.location = "Buckingham Palace, London"
     
     stored_tabs = st.session_state.active_tabs
     tabs = stored_tabs + ["+ New"]
@@ -43,13 +45,13 @@ with st.sidebar:
     with current_tab[st.session_state.selected_tab]:
         if st.session_state.selected_tab == len(tabs) - 1:
             # New tab content
-            location = st.text_input("Starting Location",
-                                     "Buckingham Palace, London",
+            st.session_state.location = st.text_input("Starting Location",
+                                     st.session_state.location,
                                      help="Enter an address or landmark")
         else:
             # Display stored contour information
             stored_result = st.session_state.stored_results[st.session_state.selected_tab]
-            st.text(f"Location: {location}")
+            st.text(f"Location: {st.session_state.location}")
             st.text(f"Mode: {stored_result[0]}")
             st.text(f"Maximum Time: {stored_result[2]} minutes")
 
@@ -135,7 +137,7 @@ try:
         mode = selected_mode
         settings = mode_settings[mode]
         api_mode, use_geoapify = available_modes[mode]
-        calculator = TravelTimeCalculator(location=location,
+        calculator = TravelTimeCalculator(location=st.session_state.location,
                                         max_time=settings["max_time"],
                                         mode=api_mode,
                                         interval=settings["interval"],
