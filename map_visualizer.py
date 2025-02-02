@@ -99,7 +99,7 @@ class MapVisualizer:
                     name=f'{mode} - {time} min',
                     hoverinfo='text',
                     hovertext=f'{mode}: {time} min',
-                    showlegend=True
+                    showlegend=False
                 )
 
         # Add center point
