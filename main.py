@@ -145,10 +145,10 @@ try:
         # Update active tabs
         new_tab_name = f"{mode} ({settings['max_time']}min)"
         if new_tab_name not in st.session_state.active_tabs:
-            st.session_state.active_tabs.append(new_tab_name)
+            st.session_state.active_tabs.insert(0, new_tab_name)  # Insert at beginning
         
-        # Add new results
-        st.session_state.stored_results.extend(new_results)
+        # Add new results to beginning of list
+        st.session_state.stored_results = new_results + st.session_state.stored_results
         
         # Create visualization
         st.session_state.current_fig = visualizer.create_multi_mode_map(
