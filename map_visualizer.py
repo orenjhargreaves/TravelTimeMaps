@@ -75,7 +75,8 @@ class MapVisualizer:
                             side="top"
                         ),
                         x=1.02 + offset,  # Stack horizontally
-                        y=0.5,
+                        y=0.15,  # Lower base position
+                        yanchor='bottom',  # Anchor at bottom
                         len=(0.75 * max_time/60),  # Scale length proportionally to max time
                         thickness=20,
                         orientation='v',
