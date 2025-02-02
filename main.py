@@ -113,7 +113,7 @@ with st.sidebar:
                 "Contour Color",
                 options=list(color_options.keys()),
                 key=f"color_{idx}",
-                value=contour.color
+                index=list(color_options.keys()).index(contour.color)
             )
             
             if selected_color != contour.color:
