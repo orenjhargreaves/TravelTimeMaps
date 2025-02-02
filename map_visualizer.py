@@ -41,7 +41,7 @@ class MapVisualizer:
 
         return f'rgba({r},{g},{b},{opacity})'
 
-    def create_multi_mode_map(self, contours: List["Contour"], washed_out: bool = False) -> go.Figure:
+    def create_multi_mode_map(self, contours: List["Contour"], map_style: str='carto_positron') -> go.Figure:
         """Create a map with multiple transport mode contours."""
         if not contours:
             raise ValueError("No contours available for visualization")
@@ -93,7 +93,7 @@ class MapVisualizer:
 
         fig.update_layout(
             mapbox=dict(
-                style=washed_out,  # Now washed_out will be the style name
+                style=map_style,  # Now washed_out will be the style name
                 center=dict(lat=center[0], lon=center[1]),
                 zoom=11,
                 domain={'x': [0, 1], 'y': [0, 1]}
