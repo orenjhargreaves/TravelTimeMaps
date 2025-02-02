@@ -77,9 +77,10 @@ class MapVisualizer:
                         x=1.02 + offset,  # Stack horizontally
                         y=0.15,  # Lower base position
                         yanchor='bottom',  # Anchor at bottom
-                        len=(0.75 * max_time/60),  # Scale length proportionally to max time
+                        len=0.75,  # Keep consistent length
                         thickness=20,
                         orientation='v',
+                        range=[0, max_time],  # Set the range for proper scaling
                         bgcolor='rgba(255,255,255,0.9)',
                         tickmode='array',
                         tickvals=[f["properties"]["contour"] for f in features],
