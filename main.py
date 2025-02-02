@@ -41,11 +41,9 @@ with st.sidebar:
 
     mode_settings = {}
     
-    # Handle tab content
-    with current_tab[st.session_state.selected_tab]:
-        # Transportation mode mapping
-        available_modes = {
-            "Cycling": ("bicycling", False),  # (mode, use_geoapify)
+    # Transportation mode mapping
+    available_modes = {
+        "Cycling": ("bicycling", False),  # (mode, use_geoapify)
             "Driving": ("driving", False),
             "Walking": ("walking", False),
             "Transit": ("transit", True),
@@ -96,10 +94,10 @@ with st.sidebar:
     if st.session_state.selected_tab == len(tabs) - 1:  # New tab
         st.session_state.calculate = st.button("Add Contour")
     else:
-        if st.button("Delete Contour"):
+        if st.button("Delete Contour", key=f"delete_{st.session_state.selected_tab}"):
             st.session_state.stored_results.pop(st.session_state.selected_tab)
             st.session_state.active_tabs.pop(st.session_state.selected_tab)
-            st.session_state.selected_tab = len(tabs) - 1  # Select New tab
+            st.session_state.selected_tab = min(st.session_state.selected_tab, len(st.session_state.active_tabs))
             st.experimental_rerun()
 
 # Create placeholders for the interface elements
