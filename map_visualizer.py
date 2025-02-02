@@ -91,7 +91,7 @@ class MapVisualizer:
                               for i, f in enumerate(features)],
                     showscale=True,
                     cmin=0,
-                    cmax=max_time,
+                    cmax=contour.max_time,
                     colorbar=dict(
                         title=dict(
                             text=f"{contour.mode}",
