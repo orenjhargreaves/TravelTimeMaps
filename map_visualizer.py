@@ -22,7 +22,7 @@ class MapVisualizer:
             "Orange": ((255, 218, 185), (210, 105, 30)),
             "Purple": ((230, 190, 255), (128, 0, 128))
         }
-        
+
         if contour.color != "Default" and contour.color in color_options:
             start_color, end_color = color_options[contour.color]
         else:
@@ -57,7 +57,6 @@ class MapVisualizer:
                            reverse=True)
 
             # Create colorbar trace
-            offset = 0.15 * contours.index(contour)
             fig.add_scattermapbox(
                 lat=[None],
                 lon=[None],
@@ -75,12 +74,13 @@ class MapVisualizer:
                             text=f"{contour.mode}",
                             side="top"
                         ),
-                        x=1.02 + offset,
-                        y=0,
-                        yanchor='bottom',
-                        len=0.06 + 0.75 * (contour.max_time / 60),
-                        thickness=20,
+                        x=1.02,
+                        y=0.5,
+                        yanchor='middle',
+                        len=0.8,
+                        thickness=15,
                         orientation='v',
+                        xanchor='left',
                         bgcolor='rgba(255,255,255,0.9)',
                         tickmode='array',
                         tickvals=[f["properties"]["contour"] for f in features],
