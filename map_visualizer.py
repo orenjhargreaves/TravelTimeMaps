@@ -69,17 +69,22 @@ class MapVisualizer:
                     cmin=0,
                     cmax=max_time,
                     colorbar=dict(
-                        title=None,  # Remove title
+                        title=dict(
+                            text="Travel Time (minutes)",
+                            side="top"
+                        ),
                         tickmode='array',
                         tickvals=[f["properties"]["contour"] for f in features],
                         ticktext=[f'{i}min' for i in [f["properties"]["contour"] for f in features]],
-                        thickness=15,
-                        len=0.9 * (max_time / max(r[2] for r in results)),
-                        x=1.02 + (0.08 * results.index((mode, data, max_time))),  # Position scales on right
-                        y=0.02,  # Position at bottom
-                        orientation='h',  # Horizontal orientation
-                        bgcolor='rgba(255,255,255,0.8)',
-                        tickfont=dict(size=10)
+                        thickness=30,
+                        len=1.0,
+                        x=0.5,  # Center horizontally
+                        y=-0.15,  # Position below map
+                        orientation='h',
+                        bgcolor='rgba(255,255,255,0.9)',
+                        tickfont=dict(size=12),
+                        showline=True,
+                        outlinewidth=2
                     )
                 ),
                 name=mode,
@@ -117,7 +122,7 @@ class MapVisualizer:
 
         fig.update_layout(
             mapbox=dict(
-                style='carto-positron' if not washed_out else 'carto-light',
+                style='mapbox://styles/mapbox/streets-v11' if not washed_out else 'mapbox://styles/mapbox/light-v10',
                 center=dict(lat=center[0], lon=center[1]),
                 zoom=11
             ),

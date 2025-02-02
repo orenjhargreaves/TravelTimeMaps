@@ -24,38 +24,30 @@ with st.sidebar:
 
     # Tabs for contours
     st.markdown("### Contours")
-    tabs = ["+ New"] + [
+    stored_tabs = [
         f"{mode} ({settings['max_time']}min)"
         for mode, settings in st.session_state.mode_settings.items()
-    ] if 'mode_settings' in st.session_state else ["+ New"]
+    ] if 'mode_settings' in st.session_state else []
+    tabs = stored_tabs + ["+"]
     current_tab = st.tabs(tabs)
 
     mode_settings = {}
-    with current_tab[0]:
+    tab_index = len(stored_tabs)  # Index of the "+" tab
+    with current_tab[tab_index]:
         # Location input
         location = st.text_input("Starting Location",
                                  "Buckingham Palace, London",
                                  help="Enter an address or landmark")
 
-        # API selection
-        use_geoapify = st.checkbox("Use Geoapify API (includes public transport)",
-                                   False)
-
         # Transportation mode mapping
-        if use_geoapify:
-            available_modes = {
-                "Cycling": "bicycle",
-                "Driving": "drive",
-                "Walking": "walk",
-                "Transit": "transit",
-                "Approximate Transit": "approximated_transit"
-            }
-        else:
-            available_modes = {
-                "Cycling": "bicycling",
-                "Driving": "driving",
-                "Walking": "walking"
-            }
+        available_modes = {
+            "Cycling": ("bicycling", False),  # (mode, use_geoapify)
+            "Driving": ("driving", False),
+            "Walking": ("walking", False),
+            "Transit": ("transit", True),
+            "Approximate Transit": ("approximated_transit", True),
+            "Bus": ("bus", True)
+        }
 
         # Single mode selection
         selected_mode = st.selectbox("Transportation Mode",
@@ -121,9 +113,10 @@ try:
         total_calculations = 1  # Only one mode at a time
         mode = selected_mode
         settings = mode_settings[mode]
+        api_mode, use_geoapify = available_modes[mode]
         calculator = TravelTimeCalculator(location=location,
                                         max_time=settings["max_time"],
-                                        mode=settings["api_mode"],
+                                        mode=api_mode,
                                         interval=settings["interval"],
                                         use_geoapify=use_geoapify)
 
