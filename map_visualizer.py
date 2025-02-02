@@ -16,7 +16,7 @@ class MapVisualizer:
     def _get_color(self, contour, time: int, base_opacity: float = 0.6) -> str:
         """Calculate color based on mode and time proportion with hue transition"""
         # Get custom color if set in session state
-        color_index = next((i for i, c in enumerate(st.session_state.contours) if c == contour), 0)
+        color_index = next((i for i, c in enumerate(st.session_state.contours) if id(c) == id(contour)), 0)
         custom_color_key = f"color_{color_index}"
 
         if custom_color_key in st.session_state and st.session_state[custom_color_key] != "Default":
@@ -115,12 +115,17 @@ class MapVisualizer:
                     showlegend=False
                 )
 
-        # Add center point
+        # Add center point as a pin
         fig.add_scattermapbox(
             lat=[center[0]],
             lon=[center[1]],
             mode='markers',
-            marker=dict(size=15, color='purple'),
+            marker=dict(
+                size=40,
+                symbol='marker',
+                color='purple',
+                angle=0
+            ),
             showlegend=False
         )
 
