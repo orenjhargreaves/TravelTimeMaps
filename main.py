@@ -96,6 +96,30 @@ with st.sidebar:
             st.text(f"Maximum Time: {stored_result[2]} minutes")
             st.text(f"Time Interval: {interval} minutes")
 
+            # Color selection
+            color_options = {
+                "Default": None,
+                "Blue": ((135, 206, 235), (0, 0, 139)),
+                "Green": ((144, 238, 144), (34, 139, 34)),
+                "Red": ((255, 182, 193), (139, 0, 0)),
+                "Orange": ((255, 218, 185), (210, 105, 30)),
+                "Purple": ((230, 190, 255), (128, 0, 128))
+            }
+            
+            selected_color = st.selectbox(
+                "Contour Color",
+                options=list(color_options.keys()),
+                key=f"color_{idx}"
+            )
+            
+            # Store the color selection in session state
+            if f"color_choice_{idx}" not in st.session_state:
+                st.session_state[f"color_choice_{idx}"] = selected_color
+
+            if selected_color != st.session_state[f"color_choice_{idx}"]:
+                st.session_state[f"color_choice_{idx}"] = selected_color
+                st.rerun()
+
             if st.button("Delete Contour", key=f"delete_{idx}"):
                 st.session_state.stored_results.pop(idx)
                 st.rerun()

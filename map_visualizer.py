@@ -4,6 +4,7 @@ from typing import Dict, List, Tuple
 
 class MapVisualizer:
     def __init__(self):
+        self.results = []
         self.mode_colors = {
             "Cycling": (0, 255, 0),  # Green
             "Walking": (255, 0, 0),  # Red
@@ -23,10 +24,21 @@ class MapVisualizer:
             "Approximate Transit": ((255, 192, 203), (178, 34, 34))  # Light pink to dark red
         }
 
-        if mode not in mode_color_ranges:
-            return f'rgba(128,128,128,{base_opacity})'
-
-        start_color, end_color = mode_color_ranges[mode]
+        # Get custom color if set
+        color_key = f"color_choice_{self.results.index((mode, None, max_time))}"
+        if hasattr(st.session_state, color_key) and st.session_state[color_key] != "Default":
+            color_options = {
+                "Blue": ((135, 206, 235), (0, 0, 139)),
+                "Green": ((144, 238, 144), (34, 139, 34)),
+                "Red": ((255, 182, 193), (139, 0, 0)),
+                "Orange": ((255, 218, 185), (210, 105, 30)),
+                "Purple": ((230, 190, 255), (128, 0, 128))
+            }
+            start_color, end_color = color_options[st.session_state[color_key]]
+        else:
+            if mode not in mode_color_ranges:
+                return f'rgba(128,128,128,{base_opacity})'
+            start_color, end_color = mode_color_ranges[mode]
         progress = time / max_time
 
         # Interpolate between colors
@@ -40,6 +52,7 @@ class MapVisualizer:
 
     def create_multi_mode_map(self, results: List[Tuple[str, Dict, int]], center: Tuple[float, float], washed_out: bool = False) -> go.Figure:
         """Create a map with multiple transport mode contours."""
+        self.results = results
         if not results:
             raise ValueError("No isochrone data available for visualization")
 
