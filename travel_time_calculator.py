@@ -97,15 +97,29 @@ class TravelTimeCalculator:
         contours_minutes = self._calculate_contour_intervals()
         
         if self.use_geoapify:
-            url = "https://api.geoapify.com/v1/isoline"
-            params = {
-                "lat": self.center_location[0],
-                "lon": self.center_location[1],
-                "type": "time",
-                "mode": self.mode,
-                "range": ",".join(map(lambda x: str(x*60), contours_minutes)),  # Convert to seconds
-                "apiKey": self.api_key
-            }
+            # For Geoapify, we need to make separate requests for each contour
+            features = []
+            for minutes in contours_minutes:
+                url = "https://api.geoapify.com/v1/isoline"
+                params = {
+                    "lat": self.center_location[0],
+                    "lon": self.center_location[1],
+                    "type": "time",
+                    "mode": self.mode,
+                    "range": str(minutes * 60),  # Convert to seconds
+                    "apiKey": self.api_key
+                }
+                response = requests.get(url, params=params)
+                if response.status_code != 200:
+                    raise ValueError(f"Error calculating isochrones: {response.text}")
+                data = response.json()
+                if data["features"]:
+                    # Add the contour time to properties
+                    data["features"][0]["properties"]["contour"] = minutes
+                    features.extend(data["features"])
+            
+            self.last_result = {"type": "FeatureCollection", "features": features}
+            return self.last_result
         else:
             url = f"https://api.mapbox.com/isochrone/v1/mapbox/{self.mode}/{self.center_location[1]},{self.center_location[0]}"
             params = {
