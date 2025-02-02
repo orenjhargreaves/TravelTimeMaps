@@ -74,8 +74,9 @@ class MapVisualizer:
                         tickvals=[f["properties"]["contour"] for f in features],
                         ticktext=[f'{i}min' for i in [f["properties"]["contour"] for f in features]],
                         thickness=15,
-                        len=0.9,
-                        x=1.02 + (0.05 * results.index((mode, data, max_time)))
+                        len=0.9 * (max_time / max(r[2] for r in results)),  # Scale length by max time ratio
+                        x=1.02 + (0.05 * results.index((mode, data, max_time))),
+                        y=0.5 * (1 + (max_time / max(r[2] for r in results)))  # Center the colorbar
                     )
                 ),
                 name=mode,
