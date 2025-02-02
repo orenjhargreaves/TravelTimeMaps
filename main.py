@@ -51,18 +51,22 @@ with st.sidebar:
             "Walking": "walking"
         }
 
-    # Mode selection (multiple)
-    selected_modes = st.multiselect(
-        "Transportation Modes",
-        list(available_modes.keys()),
-        default=["Cycling"],
-        help="Select one or more transportation modes"
-    )
-
-    # Settings for each selected mode
+    # Tabs for contours
+    st.markdown("### Contours")
+    tabs = ["+ New"] + [f"{mode} ({settings['max_time']}min)" for mode, settings in st.session_state.mode_settings.items()] if 'mode_settings' in st.session_state else ["+ New"]
+    current_tab = st.tabs(tabs)
+    
     mode_settings = {}
-    for mode in selected_modes:
-        st.subheader(f"{mode} Settings")
+    with current_tab[0]:
+        # Single mode selection
+        selected_mode = st.selectbox(
+            "Transportation Mode",
+            list(available_modes.keys()),
+            help="Select a transportation mode"
+        )
+        
+        # Settings for selected mode
+        st.subheader(f"{selected_mode} Settings")
         max_time = st.slider(
             f"Maximum Travel Time ({mode})",
             5, 60, 30,
@@ -81,15 +85,20 @@ with st.sidebar:
             "api_mode": available_modes[mode]
         }
 
-    # Map style options
-    map_style = st.radio("Map Style", ["Standard", "Washed out"], horizontal=True)
-    
     # Calculate button
-    calculate = st.button("Add Contours")
+    calculate = st.button("Add Contour")
+
+# Map container
+map_col1, map_col2 = st.columns([4, 1])
+with map_col1:
+    map_placeholder.empty()
     
-    # Tabs in sidebar for existing contours
-    if st.session_state.stored_results:
-        st.markdown("### Existing Contours")
+with map_col2:
+    map_style = st.radio("Map Style", ["Standard", "Washed out"], horizontal=True)
+
+# Initialize mode settings in session state
+if 'mode_settings' not in st.session_state:
+    st.session_state.mode_settings = {}
         for idx, (mode, _, max_time) in enumerate(st.session_state.stored_results):
             with st.expander(f"{mode} ({max_time}min)"):
                 if st.button(f"Remove {mode}", key=f"remove_{idx}"):

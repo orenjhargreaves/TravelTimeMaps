@@ -75,7 +75,7 @@ class MapVisualizer:
                         ticktext=[f'{i}min' for i in [f["properties"]["contour"] for f in features]],
                         thickness=15,
                         len=0.9 * (max_time / max(r[2] for r in results)),
-                        x=0.1 + (0.15 * results.index((mode, data, max_time))),  # Position scales at bottom
+                        x=1.02 + (0.08 * results.index((mode, data, max_time))),  # Position scales on right
                         y=0.02,  # Position at bottom
                         orientation='h',  # Horizontal orientation
                         bgcolor='rgba(255,255,255,0.8)',
