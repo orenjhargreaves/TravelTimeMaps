@@ -36,13 +36,15 @@ with st.sidebar:
         "Bus": ("bus", True)
     }
 
-    # Count occurrences of each mode
+    # Create a mapping of modes to their occurrence number
     mode_counts = {}
+    mode_indices = []
     for mode, _, _ in st.session_state.stored_results:
         mode_counts[mode] = mode_counts.get(mode, 0) + 1
+        mode_indices.append(mode_counts[mode])
 
     # Create tabs for new contour and existing contours
-    tabs = ["New"] + [f"{result[0]} {mode_counts[result[0]]}" for result in st.session_state.stored_results]
+    tabs = ["New"] + [f"{result[0]} {idx}" for result, idx in zip(st.session_state.stored_results, mode_indices)]
     current_tab = st.tabs(tabs)
 
     with current_tab[0]:
