@@ -57,11 +57,13 @@ class MapVisualizer:
                            reverse=True)
 
             # Create bar chart for legend
+            base = 0
             for feature in features:
                 time = feature["properties"]["contour"]
                 fig.add_bar(
                     x=[contour.mode],
                     y=[time],
+                    base=[base],
                     marker=dict(
                         color=self._get_color(contour, time),
                     ),
@@ -72,6 +74,7 @@ class MapVisualizer:
                     yaxis='y2',
                     opacity=0.7
                 )
+                base = time
 
             # Add contour lines
             for feature in features:
