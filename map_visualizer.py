@@ -19,8 +19,8 @@ class MapVisualizer:
         else:
             r, g, b = self.mode_colors[mode]
 
-        # Calculate opacity based on time (longer time = more opaque)
-        opacity = base_opacity + (0.4 * (time / max_time))
+        # Calculate opacity based on time (shorter time = more opaque)
+        opacity = base_opacity + (0.4 * (1 - time / max_time))
         
         return f'rgba({r},{g},{b},{opacity})'
 

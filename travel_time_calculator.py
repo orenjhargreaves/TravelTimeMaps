@@ -95,7 +95,7 @@ class TravelTimeCalculator:
                     "lon": self.center_location[1],
                     "type": "time",
                     "mode": self.mode,
-                    "range": "|".join(ranges),  # Join ranges with pipe for multiple contours
+                    "range": ranges[0],  # Geoapify only accepts single range values
                     "apiKey": self.api_key
                 }
 
