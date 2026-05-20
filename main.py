@@ -17,7 +17,22 @@ from contour import Contour
 if 'contours' not in st.session_state:
     st.session_state.contours = []
 if 'location' not in st.session_state:
-    st.session_state.location = "Buckingham Palace, London"
+    st.session_state.location = "SW9 6JX"
+if 'default_loaded' not in st.session_state:
+    st.session_state.default_loaded = False
+
+# Pre-fill with a Transit contour on first load
+if not st.session_state.default_loaded:
+    st.session_state.default_loaded = True
+    with st.spinner("Loading default contour for SW9 6JX..."):
+        try:
+            _calc = TravelTimeCalculator("SW9 6JX", 50, "transit", interval=10, use_geoapify=True)
+            _c = Contour(mode="Transit", location="SW9 6JX", max_time=50, interval=10)
+            _c.set_results(_calc.calculate_travel_times(), _calc.center_location)
+            st.session_state.contours.append(_c)
+        except Exception:
+            pass
+    st.rerun()
 
 # Main title
 st.title("Travel Time Contour Map")
