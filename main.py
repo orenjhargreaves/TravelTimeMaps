@@ -1,3 +1,7 @@
+from pathlib import Path
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).parent / ".env")
+
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
