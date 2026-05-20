@@ -140,6 +140,17 @@ with st.sidebar:
                 contour.update_color(selected_color)
                 st.rerun()
 
+            band_style = st.selectbox(
+                "Time band labels",
+                options=["None", "Numbers", "Width + dash"],
+                index=["None", "Numbers", "Width + dash"].index(getattr(contour, 'band_style', 'None')),
+                key=f"band_style_{idx}",
+                help="Numbers: small label at each ring's peak. Width + dash: line thickness and dash pattern vary by time."
+            )
+            if band_style != getattr(contour, 'band_style', 'None'):
+                contour.band_style = band_style
+                st.rerun()
+
             visible = st.checkbox("Show on map", value=contour.visible, key=f"visible_{idx}")
             if visible != contour.visible:
                 contour.visible = visible
@@ -160,10 +171,13 @@ with map_col1:
 try:
     visualizer = MapVisualizer()
 
-    if st.session_state.contours:
+    any_visible = any(getattr(c, 'visible', True) for c in st.session_state.contours)
+    if st.session_state.contours and any_visible:
         current_fig = visualizer.create_multi_mode_map(
             st.session_state.contours)
         map_container.plotly_chart(current_fig, use_container_width=True)
+    elif st.session_state.contours:
+        map_container.info("All contours are hidden. Use 'Show on map' in the contour tabs to reveal them.")
     else:
         map_container.info("Create a contour to begin")
 
