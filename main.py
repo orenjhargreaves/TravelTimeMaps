@@ -114,6 +114,11 @@ with st.sidebar:
             st.text(f"Maximum Time: {contour.max_time} minutes")
             st.text(f"Time Interval: {contour.interval} minutes")
 
+            new_name = st.text_input("Legend label", value=contour.name, key=f"name_{idx}")
+            if new_name != contour.name:
+                contour.name = new_name
+                st.rerun()
+
             # Color selection
             color_options = {
                 "Default": None,

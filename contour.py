@@ -7,6 +7,7 @@ class Contour:
         self.interval = interval
         self.color = color
         self.visible = True
+        self.name = f"{mode}, {location}"
         self.features = None
         self.center_location = None
 

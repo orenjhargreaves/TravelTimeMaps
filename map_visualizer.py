@@ -79,7 +79,7 @@ class MapVisualizer:
                         width=3,
                         color=color
                     ),
-                    name=f"{contour.mode}, {contour.location}",
+                    name=getattr(contour, 'name', f"{contour.mode}, {contour.location}"),
                     legendgroup=group_id,
                     showlegend=show_in_legend,
                     hoverinfo='text',
