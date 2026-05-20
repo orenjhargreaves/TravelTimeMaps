@@ -1,5 +1,6 @@
 import os
 import requests
+from datetime import datetime
 from typing import Dict, List, Tuple
 import math
 
@@ -29,7 +30,9 @@ class TravelTimeCalculator:
                 "driving": "drive",
                 "walking": "walk",
                 "bicycling": "bicycle",
-                "public_transport": "public_transport"
+                "transit": "transit",
+                "approximated_transit": "approximated_transit",
+                "bus": "transit",  # Geoapify "bus" is a vehicle mode; use transit for passenger bus reach
             }
             return mode_mapping.get(mode, mode)
         else:
@@ -94,6 +97,8 @@ class TravelTimeCalculator:
                     "range": str(time * 60),  # Geoapify only accepts single range values
                     "apiKey": self.api_key
                 }
+                if self.mode == "transit":
+                    params["departure_time"] = datetime.now().astimezone().isoformat()
 
                 response = requests.get(url, params=params)
                 if response.status_code != 200:
