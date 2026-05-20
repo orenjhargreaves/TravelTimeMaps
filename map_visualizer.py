@@ -50,18 +50,26 @@ class MapVisualizer:
         fig = go.Figure()
 
         for contour in contours:
+            if not getattr(contour, 'visible', True):
+                continue
             if not contour.features or not contour.features.get("features"):
                 continue
 
-            features = sorted(contour.features["features"], 
+            features = sorted(contour.features["features"],
                            key=lambda x: x["properties"]["contour"],
                            reverse=True)
 
-            # Add contour lines
+            group_id = f"{contour.mode}_{contour.location}"
+            legend_added = False
+
             for feature in features:
                 time = feature["properties"]["contour"]
                 coordinates = feature["geometry"]["coordinates"][0]
                 color = self._get_color(contour, time)
+
+                show_in_legend = not legend_added
+                if show_in_legend:
+                    legend_added = True
 
                 fig.add_scattermapbox(
                     lat=[coord[1] for coord in coordinates],
@@ -71,10 +79,11 @@ class MapVisualizer:
                         width=3,
                         color=color
                     ),
-                    name=f'{contour.mode} - {time} min',
+                    name=f"{contour.mode}, {contour.location}",
+                    legendgroup=group_id,
+                    showlegend=show_in_legend,
                     hoverinfo='text',
                     hovertext=f'{contour.mode}: {time} min',
-                    showlegend=False
                 )
 
         # Add center point as a pin
@@ -93,14 +102,24 @@ class MapVisualizer:
 
         fig.update_layout(
             mapbox=dict(
-                style='carto-positron',  # Now washed_out will be the style name
+                style='carto-positron',
                 center=dict(lat=center[0], lon=center[1]),
                 zoom=11,
                 domain={'x': [0, 1], 'y': [0, 1]}
             ),
             height=800,
             margin=dict(l=0, r=0, t=30, b=0),
-            showlegend=False,
+            showlegend=True,
+            legend=dict(
+                yanchor="top",
+                y=0.99,
+                xanchor="left",
+                x=0.01,
+                bgcolor="rgba(255,255,255,0.85)",
+                bordercolor="rgba(0,0,0,0.2)",
+                borderwidth=1,
+                font=dict(size=13),
+            ),
             bargap=0,
             bargroupgap=0.2
         )

@@ -36,6 +36,15 @@ with st.sidebar:
         "Bus": ("bus", True)
     }
 
+    mode_descriptions = {
+        "Cycling":            "Travel times by bicycle.",
+        "Driving":            "Travel times by car, using live traffic data.",
+        "Walking":            "Travel times on foot.",
+        "Transit":            "Public transport using real scheduled timetables. Most accurate but slower to compute.",
+        "Approximate Transit": "Public transport using a generalised speed model instead of live timetables. Faster to compute but less precise.",
+        "Bus":                "Distance a bus vehicle can travel (routing, not passenger journey time). Rarely what you want.",
+    }
+
     # Mode counts are no longer needed since we use the contour list directly
 
     # Store contour information when created
@@ -55,6 +64,8 @@ with st.sidebar:
         selected_mode = st.selectbox("Transportation Mode",
                                    list(available_modes.keys()),
                                    key="new_mode")
+
+        st.caption(mode_descriptions[selected_mode])
 
         max_time = st.slider("Maximum Travel Time",
                            5, 60, 30,
@@ -122,6 +133,11 @@ with st.sidebar:
             
             if selected_color != contour.color:
                 contour.update_color(selected_color)
+                st.rerun()
+
+            visible = st.checkbox("Show on map", value=contour.visible, key=f"visible_{idx}")
+            if visible != contour.visible:
+                contour.visible = visible
                 st.rerun()
 
             if st.button("Delete Contour", key=f"delete_{idx}"):

@@ -6,6 +6,7 @@ class Contour:
         self.max_time = max_time
         self.interval = interval
         self.color = color
+        self.visible = True
         self.features = None
         self.center_location = None
 
