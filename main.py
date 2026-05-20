@@ -130,13 +130,6 @@ map_col1, map_col2 = st.columns([4, 1])
 with map_col1:
     map_container = st.empty()
 
-with map_col2:
-    map_style = st.selectbox("Map Style", [
-        "basic", "streets", "outdoors", "light", "dark", "satellite",
-        "satellite-streets", "navigation-day", "navigation-night",
-        "stamen-watercolor", "stamen-terrain", "stamen-toner", "carto-positron",
-        "carto-darkmatter"
-    ], index=0)
 
 # Initialize visualization
 try:
@@ -144,9 +137,7 @@ try:
 
     if st.session_state.contours:
         current_fig = visualizer.create_multi_mode_map(
-            st.session_state.contours,
-            washed_out=(map_style == "Washed out")
-        )
+            st.session_state.contours)
         map_container.plotly_chart(current_fig, use_container_width=True)
     else:
         map_container.info("Create a contour to begin")
