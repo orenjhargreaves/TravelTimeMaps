@@ -134,25 +134,14 @@ with st.sidebar:
                 contour.name = new_name
                 st.rerun()
 
-            # Color selection
-            color_options = {
-                "Default": None,
-                "Blue": ((135, 206, 235), (0, 0, 139)),
-                "Green": ((144, 238, 144), (34, 139, 34)),
-                "Red": ((255, 182, 193), (139, 0, 0)),
-                "Orange": ((255, 218, 185), (210, 105, 30)),
-                "Purple": ((230, 190, 255), (128, 0, 128))
-            }
-            
-            selected_color = st.selectbox(
-                "Contour Color",
-                options=list(color_options.keys()),
-                key=f"color_{idx}",
-                index=list(color_options.keys()).index(contour.color)
-            )
-            
-            if selected_color != contour.color:
-                contour.update_color(selected_color)
+            col_a, col_b = st.columns(2)
+            with col_a:
+                new_start = st.color_picker("Colour (short)", value=contour.start_color_hex, key=f"start_{idx}")
+            with col_b:
+                new_end = st.color_picker("Colour (long)", value=contour.end_color_hex, key=f"end_{idx}")
+            if new_start != contour.start_color_hex or new_end != contour.end_color_hex:
+                contour.start_color_hex = new_start
+                contour.end_color_hex = new_end
                 st.rerun()
 
             band_style = st.selectbox(
