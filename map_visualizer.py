@@ -67,8 +67,6 @@ class MapVisualizer:
             # For width+dash, gather unique times for this contour
             times_sorted = sorted(set(f["properties"]["contour"] for f in contour.features["features"]))
             n_times = len(times_sorted)
-            dash_cycle = ["solid", "dot", "dash", "longdash", "dashdot", "longdashdot"]
-
             # Track which times have had a number label placed (one label per time value)
             labelled_times = set()
 
@@ -77,13 +75,11 @@ class MapVisualizer:
                 coordinates = feature["geometry"]["coordinates"][0]
                 color = self._get_color(contour, time)
 
-                if band_style == "Width + dash":
+                if band_style == "Width":
                     rank = times_sorted.index(time) if time in times_sorted else 0
                     line_width = 1.5 + (rank / max(n_times - 1, 1)) * 3.5
-                    dash = dash_cycle[rank % len(dash_cycle)]
                 else:
                     line_width = 3
-                    dash = "solid"
 
                 show_in_legend = not legend_added
                 if show_in_legend:
@@ -93,7 +89,7 @@ class MapVisualizer:
                     lat=[coord[1] for coord in coordinates],
                     lon=[coord[0] for coord in coordinates],
                     mode='lines',
-                    line=dict(width=line_width, color=color, dash=dash),
+                    line=dict(width=line_width, color=color),
                     name=getattr(contour, 'name', contour.mode),
                     legendgroup=group_id,
                     showlegend=show_in_legend,

@@ -157,10 +157,10 @@ with st.sidebar:
 
             band_style = st.selectbox(
                 "Time band labels",
-                options=["None", "Numbers", "Width + dash"],
-                index=["None", "Numbers", "Width + dash"].index(getattr(contour, 'band_style', 'None')),
+                options=["None", "Numbers", "Width"],
+                index=["None", "Numbers", "Width"].index(getattr(contour, 'band_style', 'None')),
                 key=f"band_style_{idx}",
-                help="Numbers: small label at each ring's peak. Width + dash: line thickness and dash pattern vary by time."
+                help="Numbers: numbered badge at each ring's peak. Width: line thickness increases with travel time."
             )
             if band_style != getattr(contour, 'band_style', 'None'):
                 contour.band_style = band_style
