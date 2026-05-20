@@ -21,18 +21,18 @@ if 'location' not in st.session_state:
 if 'default_loaded' not in st.session_state:
     st.session_state.default_loaded = False
 
-# Pre-fill with a Transit contour on first load
+# Pre-fill from saved file on first load (no API call needed)
 if not st.session_state.default_loaded:
     st.session_state.default_loaded = True
-    with st.spinner("Loading default contour for SW9 6JX..."):
-        try:
-            _calc = TravelTimeCalculator("SW9 6JX", 50, "transit", interval=10, use_geoapify=True)
-            _c = Contour(mode="Transit", location="SW9 6JX", max_time=50, interval=10)
-            _c.set_results(_calc.calculate_travel_times(), _calc.center_location)
-            st.session_state.contours.append(_c)
-        except Exception:
-            pass
-    st.rerun()
+    _default_path = Path(__file__).parent / "default_contour.json"
+    if _default_path.exists():
+        import json
+        _data = json.loads(_default_path.read_text())
+        _c = Contour(mode=_data["mode"], location=_data["location"],
+                     max_time=_data["max_time"], interval=_data["interval"])
+        _c.set_results(_data["features"], tuple(_data["center_location"]))
+        st.session_state.contours.append(_c)
+        st.rerun()
 
 # Main title
 st.title("Travel Time Contour Map")
