@@ -6,14 +6,16 @@ import math
 
 class TravelTimeCalculator:
     def __init__(self, location: str, max_time: int, mode: str, interval: int = 5, use_geoapify: bool = False):
+        self.mapbox_key = os.environ.get('MAPBOX_ACCESS_TOKEN')
+        if not self.mapbox_key:
+            raise ValueError("Mapbox access token not found in environment variables")
+
         if use_geoapify:
             self.api_key = os.environ.get('GEOAPIFY_API_KEY')
             if not self.api_key:
                 raise ValueError("Geoapify API key not found in environment variables")
         else:
-            self.api_key = os.environ.get('MAPBOX_ACCESS_TOKEN')
-            if not self.api_key:
-                raise ValueError("Mapbox access token not found in environment variables")
+            self.api_key = self.mapbox_key
 
         self.use_geoapify = use_geoapify
         self.location = location
@@ -44,36 +46,19 @@ class TravelTimeCalculator:
             return mode_mapping.get(mode, mode)
 
     def _geocode_location(self) -> Tuple[float, float]:
-        """Convert location string to coordinates using selected API."""
-        if self.use_geoapify:
-            url = "https://api.geoapify.com/v1/geocode/search"
-            params = {
-                "text": self.location,
-                "apiKey": self.api_key,
-                "limit": 1
-            }
-        else:
-            url = f"https://api.mapbox.com/geocoding/v5/mapbox.places/{self.location}.json"
-            params = {
-                "access_token": self.api_key,
-                "limit": 1
-            }
+        """Convert location string to coordinates using Mapbox (always)."""
+        url = f"https://api.mapbox.com/geocoding/v5/mapbox.places/{self.location}.json"
+        params = {"access_token": self.mapbox_key, "limit": 1}
 
         response = requests.get(url, params=params)
         if response.status_code != 200:
             raise ValueError(f"Error geocoding location: {response.text}")
 
         data = response.json()
-        if self.use_geoapify:
-            if not data.get("features"):
-                raise ValueError(f"Location not found: {self.location}")
-            feature = data["features"][0]
-            return (feature["properties"]["lat"], feature["properties"]["lon"])
-        else:
-            if not data["features"]:
-                raise ValueError(f"Location not found: {self.location}")
-            lng, lat = data["features"][0]["center"]
-            return (lat, lng)
+        if not data["features"]:
+            raise ValueError(f"Location not found: {self.location}")
+        lng, lat = data["features"][0]["center"]
+        return (lat, lng)
 
     def calculate_travel_times(self, progress_callback=None) -> Dict:
         """Calculate isochrones using selected API with single requests."""
