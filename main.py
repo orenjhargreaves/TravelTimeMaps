@@ -277,6 +277,7 @@ with st.sidebar:
 
 # ── Main content ──────────────────────────────────────────────────────────────
 st.title("Travel Time Contour Map")
+st.caption("To add or manage contours, tap the **›** arrow in the top-left corner to open the settings panel.")
 
 tab_map, tab_fastest = st.tabs(["Contour Map", "Fastest Mode"])
 
