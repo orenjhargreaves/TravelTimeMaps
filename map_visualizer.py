@@ -144,9 +144,12 @@ class MapVisualizer:
             times_sorted = sorted(set(f["properties"]["contour"] for f in contour.features["features"]))
             n_times = len(times_sorted)
             labelled_times = set()
+            display_interval = getattr(contour, 'display_interval', contour.interval)
 
             for feature in features:
                 time = feature["properties"]["contour"]
+                if time % display_interval != 0:
+                    continue
                 coordinates = feature["geometry"]["coordinates"][0]
                 color = self._get_color(contour, time)
 
@@ -209,7 +212,7 @@ class MapVisualizer:
 
         fig.update_layout(
             mapbox=dict(
-                style='open-street-map',
+                style='carto-positron',
                 center=dict(lat=center[0], lon=center[1]),
                 zoom=11,
             ),
@@ -232,59 +235,46 @@ class MapVisualizer:
     # ── Fastest-mode map ─────────────────────────────────────────────────────
 
     @staticmethod
-    def _mid_color(contour, opacity: float = 0.6) -> str:
-        """Blend start and end hex colours at 50% and return an rgba string."""
-        sr, sg, sb = MapVisualizer._hex_to_rgb(contour.start_color_hex)
-        er, eg, eb = MapVisualizer._hex_to_rgb(contour.end_color_hex)
-        return f"rgba({(sr+er)//2},{(sg+eg)//2},{(sb+eb)//2},{opacity})"
+    def _geom_to_latlon(geom) -> tuple[list, list]:
+        """Convert a Shapely Polygon or MultiPolygon to lat/lon lists with None separators."""
+        polys = list(geom.geoms) if hasattr(geom, "geoms") else [geom]
+        lats: list = []
+        lons: list = []
+        for poly in polys:
+            if poly.is_empty:
+                continue
+            coords = list(poly.exterior.coords)
+            lons += [c[0] for c in coords] + [None]
+            lats += [c[1] for c in coords] + [None]
+        return lats, lons
 
     def create_fastest_mode_map(self, result: dict) -> go.Figure:
         """
-        Render a rasterised map where each grid cell is filled with the colour
-        of the transport mode that reaches it fastest.
+        Render a fastest-mode map using actual isochrone polygon shapes.
 
-        Cells are rendered as geo-referenced filled rectangles (Scattermapbox
-        fill='toself'), so they scale correctly when the map is zoomed.
+        Each mode's winning area is divided into time-band rings. Rings are
+        rendered outer-first (lighter) so inner rings (darker, nearer origin)
+        appear on top. Colours use the same gradient as the contour map.
+
+        `result` is the dict returned by FastestModeAnalyser.analyse_vector().
         """
+        bands    = result["bands"]      # [(contour, t, shapely_poly), ...]
         contours = result["contours"]
-        lats     = result["lats"]
-        lons     = result["lons"]
-        win_idx  = result["winning_idx"]
-        bad      = result["unreachable"]
-        g        = result["grid_size"]
-
-        # Cell half-extents from the meshgrid layout
-        half_lon = (lons[1] - lons[0]) / 2
-        half_lat = (lats[g] - lats[0]) / 2
 
         fig = go.Figure()
 
-        for ci, contour in enumerate(contours):
-            mask = (win_idx == ci) & ~bad
-            if not mask.any():
-                continue
-
-            fill_color = self._mid_color(contour, opacity=0.55)
-
-            # Build one closed rectangle per cell, separated by None.
-            # fill='toself' fills each segment independently.
-            cell_lats: list = []
-            cell_lons: list = []
-            for lat, lon in zip(lats[mask], lons[mask]):
-                lo, hi_lo = lon - half_lon, lat - half_lat
-                hi_lon, hi = lon + half_lon, lat + half_lat
-                cell_lats += [hi_lo, hi_lo, hi,    hi,    hi_lo, None]
-                cell_lons += [lo,    hi_lon, hi_lon, lo,   lo,    None]
-
+        # Render outer bands first so inner (darker, nearer) bands overlay them
+        for contour, t, poly in sorted(bands, key=lambda x: x[1], reverse=True):
+            lats, lons = self._geom_to_latlon(poly)
+            color = self._get_color(contour, t, base_opacity=0.65)
             fig.add_scattermapbox(
-                lat=cell_lats,
-                lon=cell_lons,
+                lat=lats,
+                lon=lons,
                 mode="lines",
                 fill="toself",
-                fillcolor=fill_color,
-                line=dict(width=0, color=fill_color),
-                name=contour.name,
-                showlegend=True,
+                fillcolor=color,
+                line=dict(width=0.3, color=color),
+                showlegend=False,
                 hoverinfo="skip",
             )
 
@@ -298,11 +288,13 @@ class MapVisualizer:
                     lat=[clat], lon=[clon],
                     mode="markers",
                     marker=dict(size=14, color="#E63946"),
-                    name="Origin",
-                    showlegend=True,
+                    showlegend=False,
                     hoverinfo="text",
                     hovertext=contour.location,
                 )
+
+        single_origin = len(seen) == 1
+        images, annotations, shapes = self._legend_items(contours, single_origin)
 
         center = contours[0].center_location
         fig.update_layout(
@@ -313,14 +305,9 @@ class MapVisualizer:
             ),
             height=_MAP_H,
             margin=dict(l=0, r=20, t=10, b=0),
-            showlegend=True,
-            legend=dict(
-                yanchor="top", y=0.99,
-                xanchor="left", x=0.01,
-                bgcolor="rgba(255,255,255,0.88)",
-                bordercolor="rgba(0,0,0,0.18)",
-                borderwidth=1,
-                font=dict(size=12),
-            ),
+            showlegend=False,
+            images=images,
+            annotations=annotations,
+            shapes=shapes,
         )
         return fig

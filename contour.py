@@ -17,6 +17,7 @@ class Contour:
         self.visible = True
         self.name = mode
         self.band_style = "None"
+        self.display_interval = interval
         self.features = None
         self.center_location = None
         defaults = MODE_COLOR_DEFAULTS.get(mode, ("#AAAAAA", "#333333"))

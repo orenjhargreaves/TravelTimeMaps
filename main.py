@@ -128,6 +128,21 @@ with st.sidebar:
                 contour.band_style = band_style
                 st.rerun()
 
+            valid_intervals = [
+                i for i in range(contour.interval, contour.max_time + 1, contour.interval)
+            ]
+            current_di = getattr(contour, "display_interval", contour.interval)
+            new_di = st.selectbox(
+                "Show every N min",
+                options=valid_intervals,
+                index=valid_intervals.index(current_di) if current_di in valid_intervals else 0,
+                key=f"disp_{idx}",
+                help="Thin out displayed rings without re-fetching data.",
+            )
+            if new_di != current_di:
+                contour.display_interval = new_di
+                st.rerun()
+
             visible = st.checkbox("Show on map", value=contour.visible, key=f"visible_{idx}")
             if visible != contour.visible:
                 contour.visible = visible
@@ -167,28 +182,17 @@ with tab_fastest:
     if len(visible_contours) < 2:
         st.info("Add at least two visible contours to compare modes.")
     else:
-        # Cache key: tuple of (mode, location, max_time, interval) per visible contour
         cache_key = tuple(
             (c.mode, c.location, c.max_time, c.interval) for c in visible_contours
         )
 
-        col_ctrl, col_spacer = st.columns([1, 3])
-        with col_ctrl:
-            grid_size = st.select_slider(
-                "Grid resolution",
-                options=[75, 100, 150, 200],
-                value=100,
-                help="Higher = sharper but slower. 150 takes ~2 s.",
-            )
-        full_cache_key = cache_key + (grid_size,)
-
-        if full_cache_key not in st.session_state.fastest_cache:
-            with st.spinner("Computing fastest-mode grid…"):
-                analyser = FastestModeAnalyser(grid_size=grid_size)
-                result = analyser.analyse(visible_contours)
-                st.session_state.fastest_cache[full_cache_key] = result
+        if cache_key not in st.session_state.fastest_cache:
+            with st.spinner("Computing fastest-mode regions…"):
+                analyser = FastestModeAnalyser()
+                result = analyser.analyse_vector(visible_contours)
+                st.session_state.fastest_cache[cache_key] = result
         else:
-            result = st.session_state.fastest_cache[full_cache_key]
+            result = st.session_state.fastest_cache[cache_key]
 
         if result is None:
             st.info("Not enough data to compute. Ensure at least two contours have results.")
@@ -198,8 +202,7 @@ with tab_fastest:
                 fig = visualizer.create_fastest_mode_map(result)
                 st.plotly_chart(fig, use_container_width=True)
                 st.caption(
-                    "Colour = fastest mode. Opacity = confidence: fully opaque where one mode "
-                    "leads by ≥ 2 intervals; semi-transparent where modes are closely matched."
+                    "Colour = fastest mode. Darker shade = longer travel time within that mode's zone."
                 )
             except Exception as e:
                 st.error(f"Render error: {e}")

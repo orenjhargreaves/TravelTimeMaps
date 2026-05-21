@@ -130,3 +130,99 @@ class FastestModeAnalyser:
             "contours":     visible,
             "grid_size":    self.grid_size,
         }
+
+    def analyse_vector(self, contours, simplify_tol: float = 0.0003) -> Optional[dict]:
+        """
+        Computes fastest-mode regions using polygon set operations on the actual
+        isochrone shapes. Returns smooth, organic polygons rather than grid cells.
+
+        For each time band t and each mode, computes the area that mode newly
+        enters at band t AND no other mode reached strictly before band t.
+        Ties (both modes enter at the same band) go to the first mode in the list.
+
+        Returns dict with keys:
+          bands    : list of (contour_obj, time_float, shapely_polygon)
+          contours : visible Contour list
+        or None if fewer than 2 visible contours.
+        """
+        from shapely.ops import unary_union
+
+        visible = [
+            c for c in contours
+            if getattr(c, "visible", True)
+            and c.features
+            and c.features.get("features")
+        ]
+        if len(visible) < 2:
+            return None
+
+        # Build per-mode per-time unioned+simplified cumulative polygons
+        # mode_isos[ci] = {t: shapely_polygon}
+        mode_isos: dict[int, dict] = {}
+        for ci, contour in enumerate(visible):
+            by_time: dict[int, list] = {}
+            for feat in contour.features["features"]:
+                t = feat["properties"]["contour"]
+                by_time.setdefault(t, []).append(shape(feat["geometry"]))
+            bands: dict[int, any] = {}
+            for t, polys in by_time.items():
+                unified = unary_union(polys)
+                if not unified.is_valid:
+                    unified = unified.buffer(0)
+                bands[t] = unified.simplify(simplify_tol)
+            mode_isos[ci] = bands
+
+        all_times = sorted({t for isos in mode_isos.values() for t in isos})
+
+        def prev_band(ci: int, t: int):
+            candidates = [s for s in mode_isos[ci] if s < t]
+            return max(candidates) if candidates else None
+
+        results = []  # list of (contour_obj, time_float, shapely_polygon)
+
+        for t in all_times:
+            claimed_this_band = None
+
+            for ci, contour in enumerate(visible):
+                if t not in mode_isos[ci]:
+                    continue
+
+                # Area newly entered by this mode at band t
+                pt = prev_band(ci, t)
+                ring = (mode_isos[ci][t].difference(mode_isos[ci][pt])
+                        if pt is not None else mode_isos[ci][t])
+
+                if ring.is_empty:
+                    continue
+
+                # Remove areas where other modes reached strictly BEFORE this band
+                for other_ci in range(len(visible)):
+                    if other_ci == ci:
+                        continue
+                    opt = prev_band(other_ci, t)
+                    if opt is not None:
+                        try:
+                            ring = ring.difference(mode_isos[other_ci][opt])
+                        except Exception:
+                            ring = ring.buffer(0).difference(mode_isos[other_ci][opt].buffer(0))
+                    if ring.is_empty:
+                        break
+
+                if ring.is_empty:
+                    continue
+
+                # Remove tie areas already claimed by earlier modes at this same band
+                if claimed_this_band is not None:
+                    try:
+                        ring = ring.difference(claimed_this_band)
+                    except Exception:
+                        ring = ring.buffer(0).difference(claimed_this_band.buffer(0))
+
+                if ring.is_empty:
+                    continue
+
+                results.append((contour, float(t), ring))
+                claimed_this_band = (ring if claimed_this_band is None
+                                     else claimed_this_band.union(ring))
+
+        return {"bands": results, "contours": visible}
