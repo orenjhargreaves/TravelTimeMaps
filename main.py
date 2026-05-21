@@ -148,7 +148,7 @@ with st.sidebar:
     # ── New contour creation form ─────────────────────────────────────────────
     st.subheader("New contour")
 
-    new_location = st.text_input("Address or postcode", value="SW9 6JX", key="new_location")
+    new_location = st.text_input("Address or postcode", value="", placeholder="Enter a postcode or address", key="new_location")
 
     col_time, col_int = st.columns(2)
     with col_time:
