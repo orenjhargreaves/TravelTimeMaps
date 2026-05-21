@@ -209,7 +209,7 @@ class MapVisualizer:
 
         fig.update_layout(
             mapbox=dict(
-                style='carto-positron',
+                style='open-street-map',
                 center=dict(lat=center[0], lon=center[1]),
                 zoom=11,
             ),
@@ -231,69 +231,65 @@ class MapVisualizer:
 
     # ── Fastest-mode map ─────────────────────────────────────────────────────
 
+    @staticmethod
+    def _mid_color(contour, opacity: float = 0.6) -> str:
+        """Blend start and end hex colours at 50% and return an rgba string."""
+        sr, sg, sb = MapVisualizer._hex_to_rgb(contour.start_color_hex)
+        er, eg, eb = MapVisualizer._hex_to_rgb(contour.end_color_hex)
+        return f"rgba({(sr+er)//2},{(sg+eg)//2},{(sb+eb)//2},{opacity})"
+
     def create_fastest_mode_map(self, result: dict) -> go.Figure:
         """
-        Render a rasterised map where each dot is coloured by the transport
-        mode that reaches that location fastest.
+        Render a rasterised map where each grid cell is filled with the colour
+        of the transport mode that reaches it fastest.
 
-        Opacity encodes confidence: high where one mode is clearly dominant,
-        lower where modes are within ~one interval of each other.
-
-        `result` is the dict returned by FastestModeAnalyser.analyse().
+        Cells are rendered as geo-referenced filled rectangles (Scattermapbox
+        fill='toself'), so they scale correctly when the map is zoomed.
         """
         contours = result["contours"]
         lats     = result["lats"]
         lons     = result["lons"]
         win_idx  = result["winning_idx"]
-        win_time = result["winning_time"]
-        margin   = result["margin"]
         bad      = result["unreachable"]
+        g        = result["grid_size"]
 
-        # Estimate grid cell size in degrees for dot sizing
-        g = result["grid_size"]
-        lon_range = lons.max() - lons.min()
-        cell_deg  = lon_range / g
-        # At London's latitude, 1° lon ≈ 70 km; zoom 11 ≈ 70 km / (2^11 * 40075/360 / 256) pixels/deg
-        # Empirically: dot_size ≈ cell_deg * 5500 at zoom 11
-        dot_size = max(4, min(16, round(cell_deg * 5500)))
+        # Cell half-extents from the meshgrid layout
+        half_lon = (lons[1] - lons[0]) / 2
+        half_lat = (lats[g] - lats[0]) / 2
 
         fig = go.Figure()
-
-        max_interval = max(c.interval for c in contours)
 
         for ci, contour in enumerate(contours):
             mask = (win_idx == ci) & ~bad
             if not mask.any():
                 continue
 
-            # Build per-point RGBA color: mode gradient at winning time, opacity by margin
-            ct = win_time[mask]
-            mg = margin[mask]
-            # Opacity 0.35 (tied) → 0.85 (clearly dominant at 2+ intervals ahead)
-            alpha = np.clip(0.35 + 0.50 * (mg / (2.0 * max_interval)), 0.35, 0.85)
+            fill_color = self._mid_color(contour, opacity=0.55)
 
-            colors = [
-                self._get_color(contour, float(t), base_opacity=float(a))
-                for t, a in zip(ct, alpha)
-            ]
+            # Build one closed rectangle per cell, separated by None.
+            # fill='toself' fills each segment independently.
+            cell_lats: list = []
+            cell_lons: list = []
+            for lat, lon in zip(lats[mask], lons[mask]):
+                lo, hi_lo = lon - half_lon, lat - half_lat
+                hi_lon, hi = lon + half_lon, lat + half_lat
+                cell_lats += [hi_lo, hi_lo, hi,    hi,    hi_lo, None]
+                cell_lons += [lo,    hi_lon, hi_lon, lo,   lo,    None]
 
             fig.add_scattermapbox(
-                lat=lats[mask],
-                lon=lons[mask],
-                mode="markers",
-                marker=dict(size=dot_size, color=colors),
+                lat=cell_lats,
+                lon=cell_lons,
+                mode="lines",
+                fill="toself",
+                fillcolor=fill_color,
+                line=dict(width=0, color=fill_color),
                 name=contour.name,
                 showlegend=True,
-                hoverinfo="text",
-                hovertext=[
-                    f"{contour.name}: {int(t)} min"
-                    + (f" (+{int(m)} vs next)" if m < 99 else "")
-                    for t, m in zip(ct, mg)
-                ],
+                hoverinfo="skip",
             )
 
         # Origin pin(s)
-        seen = set()
+        seen: set = set()
         for contour in contours:
             if contour.location not in seen:
                 seen.add(contour.location)
@@ -311,7 +307,7 @@ class MapVisualizer:
         center = contours[0].center_location
         fig.update_layout(
             mapbox=dict(
-                style="carto-positron",
+                style="open-street-map",
                 center=dict(lat=center[0], lon=center[1]),
                 zoom=11,
             ),
