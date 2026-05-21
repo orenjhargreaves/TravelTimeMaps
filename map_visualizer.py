@@ -29,7 +29,7 @@ class MapVisualizer:
         h = hex_color.lstrip('#')
         return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
 
-    def _get_color(self, contour, time: int, base_opacity: float = 0.6) -> str:
+    def _get_color(self, contour, time: int, base_opacity: float = 0.6, vary_opacity: bool = True) -> str:
         start_color = self._hex_to_rgb(getattr(contour, 'start_color_hex', '#AAAAAA'))
         end_color   = self._hex_to_rgb(getattr(contour, 'end_color_hex',   '#333333'))
 
@@ -37,7 +37,7 @@ class MapVisualizer:
         r = int(start_color[0] + (end_color[0] - start_color[0]) * progress)
         g = int(start_color[1] + (end_color[1] - start_color[1]) * progress)
         b = int(start_color[2] + (end_color[2] - start_color[2]) * progress)
-        opacity = base_opacity + (0.4 * (1 - progress))
+        opacity = base_opacity + (0.4 * (1 - progress)) if vary_opacity else base_opacity
 
         return f'rgba({r},{g},{b},{opacity})'
 
@@ -266,7 +266,7 @@ class MapVisualizer:
         # Render outer bands first so inner (darker, nearer) bands overlay them
         for contour, t, poly in sorted(bands, key=lambda x: x[1], reverse=True):
             lats, lons = self._geom_to_latlon(poly)
-            color = self._get_color(contour, t, base_opacity=0.65)
+            color = self._get_color(contour, t, base_opacity=0.65, vary_opacity=False)
             fig.add_scattermapbox(
                 lat=lats,
                 lon=lons,
