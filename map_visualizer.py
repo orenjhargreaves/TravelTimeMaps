@@ -1,24 +1,28 @@
 import base64
 import colorsys
+import io
+import math
+
 import numpy as np
 import plotly.graph_objects as go
+from PIL import Image
+from shapely.geometry import shape
+from shapely.ops import unary_union
 from typing import List
 
-_MAP_H = 800      # figure height in px
-_MAP_W = 900      # effective map width assumption (px); used only for paper-coord scaling
+_MAP_H = 800
+_MAP_W = 900
 
-# Paper-coordinate measurements
-_SWATCH_W = 60 / _MAP_W    # ~0.067
-_SWATCH_H = 14 / _MAP_H    # 0.0175
-_PAD_X    = 10 / _MAP_W    # left/right padding inside box
-_PAD_Y    = 10 / _MAP_H    # top/bottom padding inside box
-_ROW_H    = 30 / _MAP_H    # vertical step per legend row
-_GAP      = 8  / _MAP_W    # gap between swatch and label
+_SWATCH_W = 60 / _MAP_W
+_SWATCH_H = 14 / _MAP_H
+_PAD_X    = 10 / _MAP_W
+_PAD_Y    = 10 / _MAP_H
+_ROW_H    = 30 / _MAP_H
+_GAP      = 8  / _MAP_W
 
-# Legend box left edge and top edge (paper coords)
 _BOX_X0 = 0.01
 _BOX_Y1 = 0.99
-_BOX_X1 = _BOX_X0 + _PAD_X + _SWATCH_W + _GAP + 0.10  # 0.10 for label text
+_BOX_X1 = _BOX_X0 + _PAD_X + _SWATCH_W + _GAP + 0.10
 
 
 class MapVisualizer:
@@ -55,76 +59,99 @@ class MapVisualizer:
         )
         return "data:image/svg+xml;base64," + base64.b64encode(svg.encode()).decode()
 
-    def _legend_items(self, visible, single_origin):
-        """Return (images, annotations, shapes) for the custom gradient legend."""
-        n_rows = len(visible) + 1  # contours + pin row
-        box_h = _PAD_Y * 2 + n_rows * _ROW_H
+    # ── Custom map-pin polygon ────────────────────────────────────────────────
+
+    def _pin_polygon(self, clat: float, clon: float, h: float = 0.003) -> tuple[list, list]:
+        """
+        Teardrop map-pin polygon whose tip points to (clat, clon).
+        Longitude is scaled by cos(lat) so the circle head looks round on the map.
+        """
+        lon_scale = math.cos(math.radians(clat))
+        r_lat = h * 0.35                 # circle radius in lat degrees
+        r_lon = r_lat / lon_scale        # circle radius in lon degrees
+        cy    = clat + h * 0.60          # circle centre latitude
+
+        # Tangent half-angle from the vertical centre→tip line
+        alpha = math.asin(r_lat / (h * 0.60))
+
+        # Arc sweeps CCW from right tangent angle (-alpha) over the top to left (π+alpha)
+        angles   = np.linspace(-alpha, math.pi + alpha, 48)
+        arc_lons = clon + r_lon * np.cos(angles)
+        arc_lats = cy   + r_lat * np.sin(angles)
+
+        lons = np.concatenate([[clon], arc_lons, [clon]])
+        lats = np.concatenate([[clat], arc_lats, [clat]])
+        return lats.tolist(), lons.tolist()
+
+    def _add_origin_pin(
+        self, fig: go.Figure,
+        clat: float, clon: float,
+        location: str, color: str, opacity: float,
+    ) -> None:
+        lats, lons = self._pin_polygon(clat, clon)
+        r, g, b   = self._hex_to_rgb(color)
+        fig.add_scattermapbox(
+            lat=lats, lon=lons,
+            mode='lines',
+            fill='toself',
+            fillcolor=f'rgba({r},{g},{b},{opacity})',
+            line=dict(width=1, color=f'rgba({r},{g},{b},1.0)'),
+            showlegend=False,
+            hoverinfo='text',
+            hovertext=location,
+        )
+
+    # ── Legend helpers ────────────────────────────────────────────────────────
+
+    def _legend_items(self, visible, single_origin: bool, pin_color: str = '#E63946'):
+        n_rows = len(visible) + 1
+        box_h  = _PAD_Y * 2 + n_rows * _ROW_H
         box_y0 = _BOX_Y1 - box_h
 
-        images = []
-        annotations = []
-
+        images, annotations = [], []
         swatch_x = _BOX_X0 + _PAD_X
         label_x  = swatch_x + _SWATCH_W + _GAP
 
         for i, contour in enumerate(visible):
-            # Top of swatch in paper coords (yanchor='top')
             swatch_top = _BOX_Y1 - _PAD_Y - i * _ROW_H
             swatch_mid = swatch_top - _SWATCH_H / 2
-
             images.append(dict(
                 source=self._gradient_svg(contour.start_color_hex, contour.end_color_hex),
                 xref="paper", yref="paper",
-                x=swatch_x,
-                y=swatch_top,
-                sizex=_SWATCH_W,
-                sizey=_SWATCH_H,
-                xanchor="left",
-                yanchor="top",
-                layer="above",
+                x=swatch_x, y=swatch_top,
+                sizex=_SWATCH_W, sizey=_SWATCH_H,
+                xanchor="left", yanchor="top", layer="above",
             ))
-
             annotations.append(dict(
-                text=contour.name,
-                x=label_x,
-                y=swatch_mid,
+                text=contour.name, x=label_x, y=swatch_mid,
                 xref="paper", yref="paper",
                 xanchor="left", yanchor="middle",
-                showarrow=False,
-                font=dict(size=12, color="#222222"),
+                showarrow=False, font=dict(size=12, color="#222222"),
             ))
 
-        # Pin row
         pin_row_top = _BOX_Y1 - _PAD_Y - len(visible) * _ROW_H
-        pin_mid = pin_row_top - _SWATCH_H / 2
-        pin_label = "Origin" if single_origin else "Origins"
-
+        pin_mid     = pin_row_top - _SWATCH_H / 2
+        pin_label   = "Origin" if single_origin else "Origins"
         annotations.append(dict(
-            text=f'<b style="color:#E63946;">●</b> {pin_label}',
-            x=swatch_x,
-            y=pin_mid,
+            text=f'<b style="color:{pin_color};">●</b> {pin_label}',
+            x=swatch_x, y=pin_mid,
             xref="paper", yref="paper",
             xanchor="left", yanchor="middle",
-            showarrow=False,
-            font=dict(size=12, color="#222222"),
+            showarrow=False, font=dict(size=12, color="#222222"),
         ))
 
         shapes = [dict(
-            type="rect",
-            xref="paper", yref="paper",
-            x0=_BOX_X0, y0=box_y0,
-            x1=_BOX_X1, y1=_BOX_Y1,
+            type="rect", xref="paper", yref="paper",
+            x0=_BOX_X0, y0=box_y0, x1=_BOX_X1, y1=_BOX_Y1,
             fillcolor="rgba(255,255,255,0.88)",
             line=dict(color="rgba(0,0,0,0.18)", width=1),
             layer="above",
         )]
-
         return images, annotations, shapes
 
-    def _rgb_legend_items(self, contours, base_hex: list):
-        """Legend for RGB mix mode: solid colour swatch per mode plus a brightness note."""
-        n_rows = len(contours) + 2  # modes + "brighter = faster" note + pin row
-        box_h = _PAD_Y * 2 + n_rows * _ROW_H
+    def _rgb_legend_items(self, contours, base_hex: list, pin_color: str = '#E63946'):
+        n_rows = len(contours) + 2
+        box_h  = _PAD_Y * 2 + n_rows * _ROW_H
         box_y0 = _BOX_Y1 - box_h
 
         images, annotations = [], []
@@ -161,7 +188,7 @@ class MapVisualizer:
         pin_top = _BOX_Y1 - _PAD_Y - (len(contours) + 1) * _ROW_H
         pin_mid = pin_top - _SWATCH_H / 2
         annotations.append(dict(
-            text='<b style="color:#E63946;">●</b> Origin',
+            text=f'<b style="color:{pin_color};">●</b> Origin',
             x=swatch_x, y=pin_mid,
             xref="paper", yref="paper",
             xanchor="left", yanchor="middle",
@@ -175,126 +202,13 @@ class MapVisualizer:
             line=dict(color="rgba(0,0,0,0.18)", width=1),
             layer="above",
         )]
-
         return images, annotations, shapes
 
-    def create_multi_mode_map(self, contours: List["Contour"], map_style: str = "carto-positron", opacity: float = 0.65) -> go.Figure:
-        """Create a map with multiple transport mode contours."""
-        visible = [
-            c for c in contours
-            if getattr(c, 'visible', True) and c.features and c.features.get("features")
-        ]
-
-        if not visible:
-            raise ValueError("No visible contours to display")
-
-        center = visible[0].center_location
-        fig = go.Figure()
-
-        # ── Contour line traces ───────────────────────────────────────────────
-        for contour in visible:
-            features = sorted(contour.features["features"],
-                              key=lambda x: x["properties"]["contour"],
-                              reverse=True)
-
-            group_id = f"{contour.mode}_{contour.location}"
-            band_style = getattr(contour, 'band_style', 'None')
-            times_sorted = sorted(set(f["properties"]["contour"] for f in contour.features["features"]))
-            n_times = len(times_sorted)
-            labelled_times = set()
-            display_interval = getattr(contour, 'display_interval', contour.interval)
-
-            for feature in features:
-                time = feature["properties"]["contour"]
-                if time % display_interval != 0:
-                    continue
-                coordinates = feature["geometry"]["coordinates"][0]
-                color = self._get_color(contour, time, base_opacity=opacity)
-
-                if band_style == "Width":
-                    rank = times_sorted.index(time) if time in times_sorted else 0
-                    line_width = 1.5 + (rank / max(n_times - 1, 1)) * 3.5
-                else:
-                    line_width = 3
-
-                fig.add_scattermapbox(
-                    lat=[coord[1] for coord in coordinates],
-                    lon=[coord[0] for coord in coordinates],
-                    mode='lines',
-                    line=dict(width=line_width, color=color),
-                    legendgroup=group_id,
-                    showlegend=False,
-                    hoverinfo='text',
-                    hovertext=f'{contour.name}: {time} min',
-                )
-
-                if band_style == "Numbers" and time not in labelled_times:
-                    labelled_times.add(time)
-                    north_idx = max(range(len(coordinates)), key=lambda i: coordinates[i][1])
-                    label_lon, label_lat = coordinates[north_idx]
-                    fig.add_scattermapbox(
-                        lat=[label_lat],
-                        lon=[label_lon],
-                        mode='markers+text',
-                        marker=dict(size=16, color=color, opacity=0.9),
-                        text=[str(time)],
-                        textfont=dict(size=9, color='white'),
-                        textposition='middle center',
-                        legendgroup=group_id,
-                        showlegend=False,
-                        hoverinfo='text',
-                        hovertext=f'{time} min',
-                    )
-
-        # ── Origin pin(s) ─────────────────────────────────────────────────────
-        seen_locations = set()
-        for contour in visible:
-            if contour.location not in seen_locations:
-                seen_locations.add(contour.location)
-                clat, clon = contour.center_location
-                fig.add_scattermapbox(
-                    lat=[clat],
-                    lon=[clon],
-                    mode='markers',
-                    marker=dict(size=14, color='#E63946'),
-                    showlegend=False,
-                    hoverinfo='text',
-                    hovertext=contour.location,
-                )
-
-        single_origin = len(seen_locations) == 1
-        title_text = visible[0].location if single_origin else ""
-        top_margin = 50 if single_origin else 30
-
-        images, annotations, shapes = self._legend_items(visible, single_origin)
-
-        fig.update_layout(
-            mapbox=dict(
-                style=map_style,
-                center=dict(lat=center[0], lon=center[1]),
-                zoom=11,
-            ),
-            height=_MAP_H,
-            margin=dict(l=0, r=20, t=top_margin, b=0),
-            title=dict(
-                text=title_text,
-                x=0.5,
-                xanchor='center',
-                font=dict(size=15),
-            ),
-            showlegend=False,
-            images=images,
-            annotations=annotations,
-            shapes=shapes,
-        )
-
-        return fig
-
-    # ── Fastest-mode map ─────────────────────────────────────────────────────
+    # ── Geometry helpers ──────────────────────────────────────────────────────
 
     @staticmethod
     def _geom_to_latlon(geom) -> tuple[list, list]:
-        """Convert a Shapely Polygon or MultiPolygon to lat/lon lists with None separators."""
+        """Shapely Polygon or MultiPolygon → lat/lon lists with None separators."""
         polys = list(geom.geoms) if hasattr(geom, "geoms") else [geom]
         lats: list = []
         lons: list = []
@@ -306,60 +220,361 @@ class MapVisualizer:
             lats += [c[1] for c in coords] + [None]
         return lats, lons
 
-    def create_fastest_mode_map(self, result: dict, map_style: str = "open-street-map", opacity: float = 0.65) -> go.Figure:
+    @staticmethod
+    def _compute_rings(features: list) -> tuple[dict, list]:
         """
-        Render a fastest-mode map using actual isochrone polygon shapes.
-
-        Each mode's winning area is divided into time-band rings. Rings are
-        rendered outer-first (lighter) so inner rings (darker, nearer origin)
-        appear on top. Colours use the same gradient as the contour map.
-
-        `result` is the dict returned by FastestModeAnalyser.analyse_vector().
+        Convert cumulative isochrone GeoJSON features into non-overlapping ring polygons.
+        ring[t] = isochrone[t] - isochrone[t-1], so each area is covered by exactly one ring.
+        This eliminates the opacity-stacking problem when filling with a semi-transparent colour.
         """
-        bands    = result["bands"]      # [(contour, t, shapely_poly), ...]
-        contours = result["contours"]
+        by_time: dict = {}
+        for feat in features:
+            t = feat["properties"]["contour"]
+            by_time.setdefault(t, []).append(shape(feat["geometry"]))
 
-        fig = go.Figure()
+        sorted_times = sorted(by_time.keys())
+        cumulative: dict = {}
+        for t in sorted_times:
+            poly = unary_union(by_time[t]).buffer(0)
+            cumulative[t] = poly
 
-        # Render outer bands first so inner (darker, nearer) bands overlay them
-        for contour, t, poly in sorted(bands, key=lambda x: x[1], reverse=True):
-            lats, lons = self._geom_to_latlon(poly)
-            color = self._get_color(contour, t, base_opacity=opacity, vary_opacity=False)
-            fig.add_scattermapbox(
-                lat=lats,
-                lon=lons,
-                mode="lines",
-                fill="toself",
-                fillcolor=color,
-                line=dict(width=0.3, color=color),
-                showlegend=False,
-                hoverinfo="skip",
+        rings: dict = {}
+        for i, t in enumerate(sorted_times):
+            if i == 0:
+                rings[t] = cumulative[t]
+            else:
+                prev_t = sorted_times[i - 1]
+                try:
+                    rings[t] = cumulative[t].difference(cumulative[prev_t])
+                except Exception:
+                    rings[t] = cumulative[t].buffer(0).difference(cumulative[prev_t].buffer(0))
+
+        return rings, sorted_times
+
+    # ── Public map builders ───────────────────────────────────────────────────
+
+    def create_multi_mode_map(
+        self,
+        contours: List["Contour"],
+        map_style: str = "carto-positron",
+        opacity: float = 0.65,
+        pin_color: str = '#E63946',
+        display_mode: str = "Filled",
+    ) -> go.Figure:
+        """
+        Contour map with ring rendering.
+
+        display_mode="Filled"   — filled rings, opacity compensated for N overlapping contours
+        display_mode="Outlines" — outline rings only, vary_opacity=True (inner = more opaque)
+        """
+        visible = [
+            c for c in contours
+            if getattr(c, 'visible', True) and c.features and c.features.get("features")
+        ]
+        if not visible:
+            raise ValueError("No visible contours to display")
+
+        # Adjust per-contour opacity so N fully-overlapping contours produce exactly `opacity`.
+        # Formula: per = 1 - (1 - opacity)^(1/N)  →  compounded N times = 1 - (1-opacity) = opacity
+        n_visible  = len(visible)
+        per_opacity = 1.0 - (1.0 - opacity) ** (1.0 / max(1, n_visible))
+
+        filled   = display_mode == "Filled"
+        center   = visible[0].center_location
+        fig      = go.Figure()
+
+        for contour in visible:
+            group_id         = f"{contour.mode}_{contour.location}"
+            band_style       = getattr(contour, 'band_style', 'None')
+            display_interval = getattr(contour, 'display_interval', contour.interval)
+            times_sorted     = sorted(set(f["properties"]["contour"] for f in contour.features["features"]))
+            n_times          = len(times_sorted)
+            labelled_times: set = set()
+
+            rings, _ = self._compute_rings(contour.features["features"])
+
+            # Outer bands first so inner (darker) bands paint on top
+            for t in sorted(rings.keys(), reverse=True):
+                if t % display_interval != 0:
+                    continue
+                ring = rings[t]
+                if ring.is_empty:
+                    continue
+
+                if filled:
+                    color      = self._get_color(contour, t, base_opacity=per_opacity, vary_opacity=False)
+                    line_color = color
+                    fill_arg   = 'toself'
+                    fill_color = color
+                    line_w     = 0.5
+                else:
+                    color      = self._get_color(contour, t, base_opacity=per_opacity, vary_opacity=True)
+                    line_color = color
+                    fill_arg   = None
+                    fill_color = 'rgba(0,0,0,0)'
+                    if band_style == "Width":
+                        rank   = times_sorted.index(t) if t in times_sorted else 0
+                        line_w = 1.0 + (rank / max(n_times - 1, 1)) * 3.0
+                    else:
+                        line_w = 2.0
+
+                if filled and band_style == "Width":
+                    rank   = times_sorted.index(t) if t in times_sorted else 0
+                    line_w = 0.5 + (rank / max(n_times - 1, 1)) * 2.0
+
+                lats, lons = self._geom_to_latlon(ring)
+
+                trace_kw = dict(
+                    lat=lats, lon=lons,
+                    mode='lines',
+                    line=dict(width=line_w, color=line_color),
+                    legendgroup=group_id,
+                    showlegend=False,
+                    hoverinfo='text',
+                    hovertext=f'{contour.name}: {t} min',
+                )
+                if fill_arg:
+                    trace_kw['fill']      = fill_arg
+                    trace_kw['fillcolor'] = fill_color
+
+                fig.add_scattermapbox(**trace_kw)
+
+                if band_style == "Numbers" and t not in labelled_times:
+                    labelled_times.add(t)
+                    poly_for_label = ring.geoms[0] if hasattr(ring, 'geoms') else ring
+                    if not poly_for_label.is_empty:
+                        coords = list(poly_for_label.exterior.coords)
+                        north  = max(coords, key=lambda c: c[1])
+                        fig.add_scattermapbox(
+                            lat=[north[1]], lon=[north[0]],
+                            mode='markers+text',
+                            marker=dict(size=16, color=color, opacity=0.9),
+                            text=[str(t)],
+                            textfont=dict(size=9, color='white'),
+                            textposition='middle center',
+                            legendgroup=group_id,
+                            showlegend=False,
+                            hoverinfo='text',
+                            hovertext=f'{t} min',
+                        )
+
+        seen_locations: set = set()
+        for contour in visible:
+            if contour.location not in seen_locations:
+                seen_locations.add(contour.location)
+                clat, clon = contour.center_location
+                self._add_origin_pin(fig, clat, clon, contour.location, pin_color, opacity)
+
+        single_origin = len(seen_locations) == 1
+        title_text    = visible[0].location if single_origin else ""
+        top_margin    = 50 if single_origin else 30
+        images, annotations, shapes = self._legend_items(visible, single_origin, pin_color)
+
+        fig.update_layout(
+            mapbox=dict(style=map_style, center=dict(lat=center[0], lon=center[1]), zoom=11),
+            height=_MAP_H,
+            margin=dict(l=0, r=20, t=top_margin, b=0),
+            title=dict(text=title_text, x=0.5, xanchor='center', font=dict(size=15)),
+            showlegend=False,
+            images=images,
+            annotations=annotations,
+            shapes=shapes,
+        )
+        return fig
+
+    @staticmethod
+    def rasterise_contours(visible: list, grid_size: int = 300) -> dict:
+        """
+        Run the slow PIP rasterization step and return raw grid data.
+        Cache this in session state; re-run only when contour data changes.
+        Returns dict with keys: flat_lons, flat_lats, mode_times, visible, grid_size.
+        """
+        from fastest_mode_analyser import FastestModeAnalyser
+        analyser = FastestModeAnalyser(grid_size=grid_size)
+        flat_lons, flat_lats = analyser._make_grid(visible)
+        mode_times = np.stack([
+            analyser._rasterise_contour(c, flat_lons, flat_lats) for c in visible
+        ])
+        return {
+            "flat_lons":  flat_lons,
+            "flat_lats":  flat_lats,
+            "mode_times": mode_times,
+            "visible":    visible,
+            "grid_size":  grid_size,
+        }
+
+    def create_contour_image_map(
+        self,
+        contours: List["Contour"],
+        map_style: str = "carto-positron",
+        opacity: float = 0.65,
+        pin_color: str = '#E63946',
+        raster: dict | None = None,
+        grid_size: int = 300,
+    ) -> go.Figure:
+        """
+        Filled contour map rendered as a PIL image overlay.
+
+        Each grid point is assigned to the fastest mode and coloured by that
+        mode's time-band gradient. Because the output is a single rasterised
+        image, opacity is perfectly uniform — no polygon stacking is possible.
+
+        Pass `raster` (from rasterise_contours) to skip the slow PIP step when
+        only visual settings (colours, opacity, pin colour) have changed.
+        """
+        visible = [
+            c for c in contours
+            if getattr(c, 'visible', True) and c.features and c.features.get("features")
+        ]
+        if not visible:
+            raise ValueError("No visible contours to display")
+
+        if raster is None:
+            raster = self.rasterise_contours(visible, grid_size)
+
+        flat_lons    = raster["flat_lons"]
+        flat_lats    = raster["flat_lats"]
+        mode_times   = raster["mode_times"]
+        grid_size    = raster["grid_size"]
+        n_pts        = len(flat_lats)
+
+        # Apply per-mode time penalty (fixed overhead e.g. walking to car).
+        # Penalty shifts effective times upward; cells where effective_time > max_time
+        # are treated as unreachable for that mode.
+        effective_times = mode_times.copy().astype(float)
+        for ci, contour in enumerate(visible):
+            p   = float(getattr(contour, 'time_penalty', 0))
+            INF = float(contour.max_time + 1)
+            effective_times[ci] += p
+            effective_times[ci, mode_times[ci] >= INF] = INF          # raw-unreachable
+            effective_times[ci, effective_times[ci] > contour.max_time] = INF  # penalty pushes over limit
+
+        winning_idx  = np.argmin(effective_times, axis=0)
+        winning_time = np.min(effective_times, axis=0)
+
+        # Smooth isolated single-pixel patches: replace each cell with the
+        # majority winner in a 5×5 neighbourhood. Only applied where a point
+        # is reachable (winning_time < INF for at least one mode).
+        if len(visible) > 1:
+            from scipy.ndimage import generic_filter
+            INF_global = float(max(c.max_time for c in visible) + 1)
+            reachable  = (winning_time < INF_global).reshape(grid_size, grid_size)
+            idx_2d     = winning_idx.reshape(grid_size, grid_size).astype(float)
+            # Mask unreachable cells as -1 so they don't bias the majority vote
+            idx_masked = np.where(reachable, idx_2d, -1.0)
+
+            def _majority(window):
+                vals = window[window >= 0].astype(int)
+                if len(vals) == 0:
+                    return -1.0
+                counts = np.bincount(vals, minlength=len(visible))
+                return float(np.argmax(counts))
+
+            smoothed = generic_filter(idx_masked, _majority, size=5, mode='nearest')
+            winning_idx = np.where(
+                reachable.ravel(),
+                smoothed.ravel().astype(int),
+                winning_idx,
             )
 
-        # Origin pin(s)
+        R = np.zeros(n_pts)
+        G = np.zeros(n_pts)
+        B = np.zeros(n_pts)
+        A = np.zeros(n_pts)
+
+        for ci, contour in enumerate(visible):
+            INF  = float(contour.max_time + 1)
+            mask = (winning_idx == ci) & (winning_time < INF)
+            if not mask.any():
+                continue
+
+            sc   = np.array(self._hex_to_rgb(contour.start_color_hex), dtype=float)
+            ec   = np.array(self._hex_to_rgb(contour.end_color_hex),   dtype=float)
+            # winning_time already includes penalty; normalise against max_time
+            prog = np.clip(winning_time[mask] / contour.max_time, 0.0, 1.0)
+
+            R[mask] = (sc[0] + (ec[0] - sc[0]) * prog) / 255.0
+            G[mask] = (sc[1] + (ec[1] - sc[1]) * prog) / 255.0
+            B[mask] = (sc[2] + (ec[2] - sc[2]) * prog) / 255.0
+            A[mask] = opacity
+
+        rgba = np.zeros((grid_size, grid_size, 4), dtype=np.uint8)
+        rgba[:, :, 0] = (R.reshape(grid_size, grid_size) * 255).clip(0, 255).astype(np.uint8)
+        rgba[:, :, 1] = (G.reshape(grid_size, grid_size) * 255).clip(0, 255).astype(np.uint8)
+        rgba[:, :, 2] = (B.reshape(grid_size, grid_size) * 255).clip(0, 255).astype(np.uint8)
+        rgba[:, :, 3] = (A.reshape(grid_size, grid_size) * 255).clip(0, 255).astype(np.uint8)
+        rgba = rgba[::-1, :, :]  # row 0 = south → flip so image row 0 = north
+
+        img = Image.fromarray(rgba, 'RGBA')
+        buf = io.BytesIO()
+        img.save(buf, format='PNG')
+        img_src = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+
+        lon_min = float(flat_lons.min())
+        lon_max = float(flat_lons.max())
+        lat_min = float(flat_lats.min())
+        lat_max = float(flat_lats.max())
+
+        fig = go.Figure()
+        fig.add_scattermapbox(
+            lat=[lat_min, lat_max], lon=[lon_min, lon_max],
+            mode='markers', marker=dict(size=1, opacity=0),
+            showlegend=False, hoverinfo='skip',
+        )
+
+        # Ring boundary lines overlaid on the image so individual time bands are legible.
+        for contour in visible:
+            display_interval = getattr(contour, 'display_interval', contour.interval)
+            penalty          = int(getattr(contour, 'time_penalty', 0))
+            rings, _ = self._compute_rings(contour.features["features"])
+            for t in sorted(rings.keys()):
+                if t % display_interval != 0:
+                    continue
+                effective_t = t + penalty
+                if effective_t > contour.max_time:
+                    continue  # penalty pushes this ring beyond the requested window
+                ring = rings[t]
+                if ring.is_empty:
+                    continue
+                lats, lons = self._geom_to_latlon(ring)
+                label = f'{contour.name}: {effective_t} min'
+                if penalty:
+                    label += f' ({t} min travel + {penalty} min overhead)'
+                fig.add_scattermapbox(
+                    lat=lats, lon=lons,
+                    mode='lines',
+                    line=dict(width=1.0, color='rgba(255,255,255,0.55)'),
+                    showlegend=False,
+                    hoverinfo='text',
+                    hovertext=label,
+                )
+
         seen: set = set()
-        for contour in contours:
+        for contour in visible:
             if contour.location not in seen:
                 seen.add(contour.location)
                 clat, clon = contour.center_location
-                fig.add_scattermapbox(
-                    lat=[clat], lon=[clon],
-                    mode="markers",
-                    marker=dict(size=14, color="#E63946"),
-                    showlegend=False,
-                    hoverinfo="text",
-                    hovertext=contour.location,
-                )
+                self._add_origin_pin(fig, clat, clon, contour.location, pin_color, opacity)
 
         single_origin = len(seen) == 1
-        images, annotations, shapes = self._legend_items(contours, single_origin)
+        images, annotations, shapes = self._legend_items(visible, single_origin, pin_color)
 
-        center = contours[0].center_location
+        center = visible[0].center_location
         fig.update_layout(
             mapbox=dict(
                 style=map_style,
                 center=dict(lat=center[0], lon=center[1]),
                 zoom=11,
+                layers=[dict(
+                    sourcetype="image",
+                    source=img_src,
+                    coordinates=[
+                        [lon_min, lat_max],  # NW
+                        [lon_max, lat_max],  # NE
+                        [lon_max, lat_min],  # SE
+                        [lon_min, lat_min],  # SW
+                    ],
+                )],
             ),
             height=_MAP_H,
             margin=dict(l=0, r=20, t=10, b=0),
@@ -370,27 +585,73 @@ class MapVisualizer:
         )
         return fig
 
-    def create_rgb_mode_map(self, result: dict, map_style: str = "carto-positron", opacity: float = 0.65) -> go.Figure:
-        """
-        Render a fastest-mode map using additive RGB colour mixing.
+    def create_fastest_mode_map(
+        self,
+        result: dict,
+        map_style: str = "open-street-map",
+        opacity: float = 0.65,
+        pin_color: str = '#E63946',
+    ) -> go.Figure:
+        """Fastest-mode map using actual isochrone polygon shapes."""
+        bands    = result["bands"]
+        contours = result["contours"]
 
-        Each mode is assigned an evenly-spaced hue (red, green, blue for three modes).
-        Each grid cell's colour is the additive mix of all modes' contributions, where
-        each mode's channel intensity = its speed (1 - travel_time / max_time).
-        Bright primary = one mode dominant; white = all equally fast; black = unreachable.
+        fig = go.Figure()
 
-        Grid cells are rendered as tiled filled rectangles (same fill='toself' approach as
-        the gradient view) rather than scatter markers, so there are no gaps.
-        Colours are quantized to ~8 levels per channel to keep the trace count manageable.
+        for contour, t, poly in sorted(bands, key=lambda x: x[1], reverse=True):
+            lats, lons = self._geom_to_latlon(poly)
+            color = self._get_color(contour, t, base_opacity=opacity, vary_opacity=False)
+            fig.add_scattermapbox(
+                lat=lats, lon=lons,
+                mode="lines",
+                fill="toself",
+                fillcolor=color,
+                line=dict(width=0.3, color=color),
+                showlegend=False,
+                hoverinfo="skip",
+            )
+
+        seen: set = set()
+        for contour in contours:
+            if contour.location not in seen:
+                seen.add(contour.location)
+                clat, clon = contour.center_location
+                self._add_origin_pin(fig, clat, clon, contour.location, pin_color, opacity)
+
+        single_origin = len(seen) == 1
+        images, annotations, shapes = self._legend_items(contours, single_origin, pin_color)
+
+        center = contours[0].center_location
+        fig.update_layout(
+            mapbox=dict(style=map_style, center=dict(lat=center[0], lon=center[1]), zoom=11),
+            height=_MAP_H,
+            margin=dict(l=0, r=20, t=10, b=0),
+            showlegend=False,
+            images=images,
+            annotations=annotations,
+            shapes=shapes,
+        )
+        return fig
+
+    def create_rgb_mode_map(
+        self,
+        result: dict,
+        map_style: str = "carto-positron",
+        opacity: float = 0.65,
+        pin_color: str = '#E63946',
+    ) -> go.Figure:
         """
-        mode_times = result["mode_times"]   # (n_modes, n_points)
+        RGB colour-mix fastest-mode map rendered as a smooth PIL image overlay.
+        Each mode is assigned an evenly-spaced hue; brightness encodes speed.
+        The image is added as a georeferenced Mapbox layer — no grid artefacts.
+        """
+        mode_times = result["mode_times"]
         flat_lats  = result["lats"]
         flat_lons  = result["lons"]
         contours   = result["contours"]
         grid_size  = result["grid_size"]
         n_modes    = len(contours)
 
-        # Evenly-spaced hues at full saturation and brightness
         base_rgb = [
             tuple(int(x * 255) for x in colorsys.hsv_to_rgb(i / n_modes, 1.0, 1.0))
             for i in range(n_modes)
@@ -407,75 +668,58 @@ class MapVisualizer:
             speed = np.where(times < INF, 1.0 - times / contour.max_time, 0.0)
             speed = np.clip(speed, 0.0, 1.0)
             r_m, g_m, b_m = base_rgb[ci]
-            R += speed * r_m / 255.0
-            G += speed * g_m / 255.0
-            B += speed * b_m / 255.0
+            R += speed * (r_m / 255.0)
+            G += speed * (g_m / 255.0)
+            B += speed * (b_m / 255.0)
 
         R = np.clip(R, 0, 1)
         G = np.clip(G, 0, 1)
         B = np.clip(B, 0, 1)
 
-        # Quantize to ~8 levels per channel so each unique colour becomes one trace
-        quant = 32
-        ri = np.clip(((R * 255 + quant / 2) // quant).astype(int) * quant, 0, 255)
-        gi = np.clip(((G * 255 + quant / 2) // quant).astype(int) * quant, 0, 255)
-        bi = np.clip(((B * 255 + quant / 2) // quant).astype(int) * quant, 0, 255)
-        color_key = ri * 65536 + gi * 256 + bi
+        # Reshape to 2D grid (row=lat index, col=lon index)
+        R_2d = R.reshape(grid_size, grid_size)
+        G_2d = G.reshape(grid_size, grid_size)
+        B_2d = B.reshape(grid_size, grid_size)
+        reach_2d = (R_2d + G_2d + B_2d) > 0
 
-        mask = color_key > 0
+        rgba = np.zeros((grid_size, grid_size, 4), dtype=np.uint8)
+        rgba[:, :, 0] = (R_2d * 255).clip(0, 255).astype(np.uint8)
+        rgba[:, :, 1] = (G_2d * 255).clip(0, 255).astype(np.uint8)
+        rgba[:, :, 2] = (B_2d * 255).clip(0, 255).astype(np.uint8)
+        rgba[:, :, 3] = np.where(reach_2d, int(opacity * 255), 0).astype(np.uint8)
 
-        # Cell half-extents: expand by 2% so adjacent cells overlap slightly,
-        # closing any hairline gap caused by floating-point polygon precision.
-        lh  = (flat_lons.max() - flat_lons.min()) / (grid_size - 1) / 2 * 1.02
-        lth = (flat_lats.max() - flat_lats.min()) / (grid_size - 1) / 2 * 1.02
+        # Row 0 of array = south (lat_min); image row 0 = north. Flip vertically.
+        rgba = rgba[::-1, :, :]
+
+        img = Image.fromarray(rgba, 'RGBA')
+        buf = io.BytesIO()
+        img.save(buf, format='PNG')
+        img_src = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+
+        lon_min = float(flat_lons.min())
+        lon_max = float(flat_lons.max())
+        lat_min = float(flat_lats.min())
+        lat_max = float(flat_lats.max())
 
         fig = go.Figure()
 
-        for ck in np.unique(color_key[mask]):
-            sel   = mask & (color_key == ck)
-            clons = flat_lons[sel]
-            clats = flat_lats[sel]
-            n     = len(clons)
-            r_v   = int(ck >> 16) & 0xFF
-            g_v   = int(ck >> 8)  & 0xFF
-            b_v   = int(ck)       & 0xFF
-            fill  = f'rgba({r_v},{g_v},{b_v},{opacity})'
-
-            # Build rectangle coords vectorised: SW SE NE NW close NaN per cell
-            lons_out = np.full(n * 6, np.nan)
-            lats_out = np.full(n * 6, np.nan)
-            lons_out[0::6] = clons - lh;  lats_out[0::6] = clats - lth  # SW
-            lons_out[1::6] = clons + lh;  lats_out[1::6] = clats - lth  # SE
-            lons_out[2::6] = clons + lh;  lats_out[2::6] = clats + lth  # NE
-            lons_out[3::6] = clons - lh;  lats_out[3::6] = clats + lth  # NW
-            lons_out[4::6] = clons - lh;  lats_out[4::6] = clats - lth  # close
-
-            fig.add_scattermapbox(
-                lat=lats_out.tolist(),
-                lon=lons_out.tolist(),
-                mode="lines",
-                fill="toself",
-                fillcolor=fill,
-                line=dict(width=0, color='rgba(0,0,0,0)'),
-                showlegend=False,
-                hoverinfo="skip",
-            )
+        # Invisible bounds trace so Plotly knows the map extent
+        fig.add_scattermapbox(
+            lat=[lat_min, lat_max], lon=[lon_min, lon_max],
+            mode='markers',
+            marker=dict(size=1, opacity=0),
+            showlegend=False,
+            hoverinfo='skip',
+        )
 
         seen: set = set()
         for contour in contours:
             if contour.location not in seen:
                 seen.add(contour.location)
                 clat, clon = contour.center_location
-                fig.add_scattermapbox(
-                    lat=[clat], lon=[clon],
-                    mode="markers",
-                    marker=dict(size=14, color="#E63946"),
-                    showlegend=False,
-                    hoverinfo="text",
-                    hovertext=contour.location,
-                )
+                self._add_origin_pin(fig, clat, clon, contour.location, pin_color, opacity)
 
-        images, annotations, shapes = self._rgb_legend_items(contours, base_hex)
+        images, annotations, shapes = self._rgb_legend_items(contours, base_hex, pin_color)
 
         center = contours[0].center_location
         fig.update_layout(
@@ -483,6 +727,16 @@ class MapVisualizer:
                 style=map_style,
                 center=dict(lat=center[0], lon=center[1]),
                 zoom=11,
+                layers=[dict(
+                    sourcetype="image",
+                    source=img_src,
+                    coordinates=[
+                        [lon_min, lat_max],  # NW
+                        [lon_max, lat_max],  # NE
+                        [lon_max, lat_min],  # SE
+                        [lon_min, lat_min],  # SW
+                    ],
+                )],
             ),
             height=_MAP_H,
             margin=dict(l=0, r=20, t=10, b=0),
