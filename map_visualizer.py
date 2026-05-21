@@ -1,7 +1,23 @@
+import base64
 import plotly.graph_objects as go
-import streamlit as st
-import numpy as np
 from typing import List
+
+_MAP_H = 800      # figure height in px
+_MAP_W = 900      # effective map width assumption (px); used only for paper-coord scaling
+
+# Paper-coordinate measurements
+_SWATCH_W = 60 / _MAP_W    # ~0.067
+_SWATCH_H = 14 / _MAP_H    # 0.0175
+_PAD_X    = 10 / _MAP_W    # left/right padding inside box
+_PAD_Y    = 10 / _MAP_H    # top/bottom padding inside box
+_ROW_H    = 30 / _MAP_H    # vertical step per legend row
+_GAP      = 8  / _MAP_W    # gap between swatch and label
+
+# Legend box left edge and top edge (paper coords)
+_BOX_X0 = 0.01
+_BOX_Y1 = 0.99
+_BOX_X1 = _BOX_X0 + _PAD_X + _SWATCH_W + _GAP + 0.10  # 0.10 for label text
+
 
 class MapVisualizer:
     def __init__(self):
@@ -24,6 +40,85 @@ class MapVisualizer:
 
         return f'rgba({r},{g},{b},{opacity})'
 
+    @staticmethod
+    def _gradient_svg(start_hex: str, end_hex: str, w: int = 60, h: int = 14) -> str:
+        svg = (
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}">'
+            '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="0">'
+            f'<stop offset="0%" stop-color="{start_hex}"/>'
+            f'<stop offset="100%" stop-color="{end_hex}"/>'
+            '</linearGradient></defs>'
+            f'<rect width="{w}" height="{h}" fill="url(#g)" rx="2"/>'
+            '</svg>'
+        )
+        return "data:image/svg+xml;base64," + base64.b64encode(svg.encode()).decode()
+
+    def _legend_items(self, visible, single_origin):
+        """Return (images, annotations, shapes) for the custom gradient legend."""
+        n_rows = len(visible) + 1  # contours + pin row
+        box_h = _PAD_Y * 2 + n_rows * _ROW_H
+        box_y0 = _BOX_Y1 - box_h
+
+        images = []
+        annotations = []
+
+        swatch_x = _BOX_X0 + _PAD_X
+        label_x  = swatch_x + _SWATCH_W + _GAP
+
+        for i, contour in enumerate(visible):
+            # Top of swatch in paper coords (yanchor='top')
+            swatch_top = _BOX_Y1 - _PAD_Y - i * _ROW_H
+            swatch_mid = swatch_top - _SWATCH_H / 2
+
+            images.append(dict(
+                source=self._gradient_svg(contour.start_color_hex, contour.end_color_hex),
+                xref="paper", yref="paper",
+                x=swatch_x,
+                y=swatch_top,
+                sizex=_SWATCH_W,
+                sizey=_SWATCH_H,
+                xanchor="left",
+                yanchor="top",
+                layer="above",
+            ))
+
+            annotations.append(dict(
+                text=contour.name,
+                x=label_x,
+                y=swatch_mid,
+                xref="paper", yref="paper",
+                xanchor="left", yanchor="middle",
+                showarrow=False,
+                font=dict(size=12, color="#222222"),
+            ))
+
+        # Pin row
+        pin_row_top = _BOX_Y1 - _PAD_Y - len(visible) * _ROW_H
+        pin_mid = pin_row_top - _SWATCH_H / 2
+        pin_label = "Origin" if single_origin else "Origins"
+
+        annotations.append(dict(
+            text=f'<b style="color:#E63946;">●</b> {pin_label}',
+            x=swatch_x,
+            y=pin_mid,
+            xref="paper", yref="paper",
+            xanchor="left", yanchor="middle",
+            showarrow=False,
+            font=dict(size=12, color="#222222"),
+        ))
+
+        shapes = [dict(
+            type="rect",
+            xref="paper", yref="paper",
+            x0=_BOX_X0, y0=box_y0,
+            x1=_BOX_X1, y1=_BOX_Y1,
+            fillcolor="rgba(255,255,255,0.88)",
+            line=dict(color="rgba(0,0,0,0.18)", width=1),
+            layer="above",
+        )]
+
+        return images, annotations, shapes
+
     def create_multi_mode_map(self, contours: List["Contour"]) -> go.Figure:
         """Create a map with multiple transport mode contours."""
         visible = [
@@ -37,20 +132,16 @@ class MapVisualizer:
         center = visible[0].center_location
         fig = go.Figure()
 
-        # Collect all unique times across visible contours for width/dash scaling
+        # ── Contour line traces ───────────────────────────────────────────────
         for contour in visible:
             features = sorted(contour.features["features"],
-                           key=lambda x: x["properties"]["contour"],
-                           reverse=True)
+                              key=lambda x: x["properties"]["contour"],
+                              reverse=True)
 
             group_id = f"{contour.mode}_{contour.location}"
-            legend_added = False
             band_style = getattr(contour, 'band_style', 'None')
-
-            # For width+dash, gather unique times for this contour
             times_sorted = sorted(set(f["properties"]["contour"] for f in contour.features["features"]))
             n_times = len(times_sorted)
-            # Track which times have had a number label placed (one label per time value)
             labelled_times = set()
 
             for feature in features:
@@ -64,23 +155,17 @@ class MapVisualizer:
                 else:
                     line_width = 3
 
-                show_in_legend = not legend_added
-                if show_in_legend:
-                    legend_added = True
-
                 fig.add_scattermapbox(
                     lat=[coord[1] for coord in coordinates],
                     lon=[coord[0] for coord in coordinates],
                     mode='lines',
                     line=dict(width=line_width, color=color),
-                    name=getattr(contour, 'name', contour.mode),
                     legendgroup=group_id,
-                    showlegend=show_in_legend,
+                    showlegend=False,
                     hoverinfo='text',
-                    hovertext=f'{contour.mode}: {time} min',
+                    hovertext=f'{contour.name}: {time} min',
                 )
 
-                # Numbers method: one label per time value at the northernmost point
                 if band_style == "Numbers" and time not in labelled_times:
                     labelled_times.add(time)
                     north_idx = max(range(len(coordinates)), key=lambda i: coordinates[i][1])
@@ -93,14 +178,13 @@ class MapVisualizer:
                         text=[str(time)],
                         textfont=dict(size=9, color='white'),
                         textposition='middle center',
-                        name=getattr(contour, 'name', contour.mode),
                         legendgroup=group_id,
                         showlegend=False,
                         hoverinfo='text',
                         hovertext=f'{time} min',
                     )
 
-        # One pin per unique origin
+        # ── Origin pin(s) ─────────────────────────────────────────────────────
         seen_locations = set()
         for contour in visible:
             if contour.location not in seen_locations:
@@ -110,7 +194,7 @@ class MapVisualizer:
                     lat=[clat],
                     lon=[clon],
                     mode='markers',
-                    marker=dict(size=18, symbol='marker', color='#E63946'),
+                    marker=dict(size=14, color='#E63946'),
                     showlegend=False,
                     hoverinfo='text',
                     hovertext=contour.location,
@@ -120,34 +204,26 @@ class MapVisualizer:
         title_text = visible[0].location if single_origin else ""
         top_margin = 50 if single_origin else 30
 
+        images, annotations, shapes = self._legend_items(visible, single_origin)
+
         fig.update_layout(
             mapbox=dict(
                 style='carto-positron',
                 center=dict(lat=center[0], lon=center[1]),
                 zoom=11,
-                domain={'x': [0, 1], 'y': [0, 1]}
             ),
-            height=800,
-            margin=dict(l=0, r=0, t=top_margin, b=0),
+            height=_MAP_H,
+            margin=dict(l=0, r=20, t=top_margin, b=0),
             title=dict(
                 text=title_text,
                 x=0.5,
                 xanchor='center',
                 font=dict(size=15),
             ),
-            showlegend=True,
-            legend=dict(
-                yanchor="top",
-                y=0.99,
-                xanchor="left",
-                x=0.01,
-                bgcolor="rgba(255,255,255,0.85)",
-                bordercolor="rgba(0,0,0,0.2)",
-                borderwidth=1,
-                font=dict(size=13),
-            ),
-            bargap=0,
-            bargroupgap=0.2
+            showlegend=False,
+            images=images,
+            annotations=annotations,
+            shapes=shapes,
         )
 
         return fig

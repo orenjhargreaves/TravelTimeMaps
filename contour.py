@@ -1,11 +1,11 @@
 
 MODE_COLOR_DEFAULTS = {
-    "Cycling":            ("#90EE90", "#228B22"),
-    "Walking":            ("#FFB6C1", "#8B0000"),
-    "Driving":            ("#87CEEB", "#00008B"),
-    "Transit":            ("#FFDAB9", "#D2691E"),
-    "Approximate Transit": ("#FFC0CB", "#B22222"),
-    "Bus":                ("#FFDAB9", "#D2691E"),
+    "Cycling":            ("#66BB6A", "#1B5E20"),
+    "Walking":            ("#EF9A9A", "#B71C1C"),
+    "Driving":            ("#64B5F6", "#0D47A1"),
+    "Transit":            ("#FFB74D", "#E65100"),
+    "Approximate Transit": ("#BA68C8", "#4A148C"),
+    "Bus":                ("#FFB74D", "#E65100"),
 }
 
 class Contour:

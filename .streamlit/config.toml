@@ -1,9 +1,9 @@
 [server]
 headless = true
 address = "0.0.0.0"
-port = 5000
+port = 8501
 [mapbox]
-token = "" # Add your Mapbox token here if you want to use Mapbox styles
+token = ""
 
 [theme]
 base="light"
