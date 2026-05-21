@@ -178,7 +178,7 @@ class MapVisualizer:
 
         return images, annotations, shapes
 
-    def create_multi_mode_map(self, contours: List["Contour"], map_style: str = "carto-positron") -> go.Figure:
+    def create_multi_mode_map(self, contours: List["Contour"], map_style: str = "carto-positron", opacity: float = 0.65) -> go.Figure:
         """Create a map with multiple transport mode contours."""
         visible = [
             c for c in contours
@@ -209,7 +209,7 @@ class MapVisualizer:
                 if time % display_interval != 0:
                     continue
                 coordinates = feature["geometry"]["coordinates"][0]
-                color = self._get_color(contour, time)
+                color = self._get_color(contour, time, base_opacity=opacity)
 
                 if band_style == "Width":
                     rank = times_sorted.index(time) if time in times_sorted else 0
@@ -306,7 +306,7 @@ class MapVisualizer:
             lats += [c[1] for c in coords] + [None]
         return lats, lons
 
-    def create_fastest_mode_map(self, result: dict, map_style: str = "open-street-map") -> go.Figure:
+    def create_fastest_mode_map(self, result: dict, map_style: str = "open-street-map", opacity: float = 0.65) -> go.Figure:
         """
         Render a fastest-mode map using actual isochrone polygon shapes.
 
@@ -324,7 +324,7 @@ class MapVisualizer:
         # Render outer bands first so inner (darker, nearer) bands overlay them
         for contour, t, poly in sorted(bands, key=lambda x: x[1], reverse=True):
             lats, lons = self._geom_to_latlon(poly)
-            color = self._get_color(contour, t, base_opacity=0.65, vary_opacity=False)
+            color = self._get_color(contour, t, base_opacity=opacity, vary_opacity=False)
             fig.add_scattermapbox(
                 lat=lats,
                 lon=lons,
@@ -370,7 +370,7 @@ class MapVisualizer:
         )
         return fig
 
-    def create_rgb_mode_map(self, result: dict, map_style: str = "carto-positron") -> go.Figure:
+    def create_rgb_mode_map(self, result: dict, map_style: str = "carto-positron", opacity: float = 0.65) -> go.Figure:
         """
         Render a fastest-mode map using additive RGB colour mixing.
 
@@ -438,7 +438,7 @@ class MapVisualizer:
             r_v   = int(ck >> 16) & 0xFF
             g_v   = int(ck >> 8)  & 0xFF
             b_v   = int(ck)       & 0xFF
-            fill  = f'rgba({r_v},{g_v},{b_v},0.8)'
+            fill  = f'rgba({r_v},{g_v},{b_v},{opacity})'
 
             # Build rectangle coords vectorised: SW SE NE NW close NaN per cell
             lons_out = np.full(n * 6, np.nan)

@@ -52,6 +52,7 @@ with st.sidebar:
     st.header("Map")
     map_style_label = st.selectbox("Base map", list(_MAP_STYLES.keys()), key="map_style_label")
     map_style = _MAP_STYLES[map_style_label]
+    opacity = st.slider("Opacity", min_value=0.1, max_value=1.0, value=0.65, step=0.05, key="opacity")
 
     st.divider()
     st.header("Contours")
@@ -176,7 +177,7 @@ with tab_map:
         visualizer = MapVisualizer()
         any_visible = any(getattr(c, "visible", True) for c in st.session_state.contours)
         if st.session_state.contours and any_visible:
-            fig = visualizer.create_multi_mode_map(st.session_state.contours, map_style=map_style)
+            fig = visualizer.create_multi_mode_map(st.session_state.contours, map_style=map_style, opacity=opacity)
             st.plotly_chart(fig, use_container_width=True)
         elif st.session_state.contours:
             st.info("All contours are hidden. Use 'Show on map' in the contour tabs to reveal them.")
@@ -224,7 +225,7 @@ with tab_fastest:
             else:
                 try:
                     visualizer = MapVisualizer()
-                    fig = visualizer.create_fastest_mode_map(result, map_style=map_style)
+                    fig = visualizer.create_fastest_mode_map(result, map_style=map_style, opacity=opacity)
                     st.plotly_chart(fig, use_container_width=True)
                     st.caption("Colour = fastest mode. Darker shade = longer travel time within that mode's zone.")
                 except Exception as e:
@@ -244,7 +245,7 @@ with tab_fastest:
             else:
                 try:
                     visualizer = MapVisualizer()
-                    fig = visualizer.create_rgb_mode_map(result, map_style=map_style)
+                    fig = visualizer.create_rgb_mode_map(result, map_style=map_style, opacity=opacity)
                     st.plotly_chart(fig, use_container_width=True)
                     st.caption(
                         "Each mode is assigned a primary colour (red, green, blue…). "
