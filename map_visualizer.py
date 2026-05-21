@@ -378,11 +378,16 @@ class MapVisualizer:
         Each grid cell's colour is the additive mix of all modes' contributions, where
         each mode's channel intensity = its speed (1 - travel_time / max_time).
         Bright primary = one mode dominant; white = all equally fast; black = unreachable.
+
+        Grid cells are rendered as tiled filled rectangles (same fill='toself' approach as
+        the gradient view) rather than scatter markers, so there are no gaps.
+        Colours are quantized to ~8 levels per channel to keep the trace count manageable.
         """
         mode_times = result["mode_times"]   # (n_modes, n_points)
         flat_lats  = result["lats"]
         flat_lons  = result["lons"]
         contours   = result["contours"]
+        grid_size  = result["grid_size"]
         n_modes    = len(contours)
 
         # Evenly-spaced hues at full saturation and brightness
@@ -410,22 +415,50 @@ class MapVisualizer:
         G = np.clip(G, 0, 1)
         B = np.clip(B, 0, 1)
 
-        mask = (R + G + B) > 0.02
-        idx  = np.where(mask)[0]
-        colors = [
-            f'rgb({int(R[i]*255)},{int(G[i]*255)},{int(B[i]*255)})'
-            for i in idx
-        ]
+        # Quantize to ~8 levels per channel so each unique colour becomes one trace
+        quant = 32
+        ri = np.clip(((R * 255 + quant / 2) // quant).astype(int) * quant, 0, 255)
+        gi = np.clip(((G * 255 + quant / 2) // quant).astype(int) * quant, 0, 255)
+        bi = np.clip(((B * 255 + quant / 2) // quant).astype(int) * quant, 0, 255)
+        color_key = ri * 65536 + gi * 256 + bi
+
+        mask = color_key > 0
+
+        # Cell half-extents from the regular linspace grid
+        lh  = (flat_lons.max() - flat_lons.min()) / (grid_size - 1) / 2
+        lth = (flat_lats.max() - flat_lats.min()) / (grid_size - 1) / 2
 
         fig = go.Figure()
-        fig.add_scattermapbox(
-            lat=flat_lats[mask],
-            lon=flat_lons[mask],
-            mode="markers",
-            marker=dict(color=colors, size=7, opacity=0.8),
-            showlegend=False,
-            hoverinfo="skip",
-        )
+
+        for ck in np.unique(color_key[mask]):
+            sel   = mask & (color_key == ck)
+            clons = flat_lons[sel]
+            clats = flat_lats[sel]
+            n     = len(clons)
+            r_v   = int(ck >> 16) & 0xFF
+            g_v   = int(ck >> 8)  & 0xFF
+            b_v   = int(ck)       & 0xFF
+            fill  = f'rgba({r_v},{g_v},{b_v},0.8)'
+
+            # Build rectangle coords vectorised: SW SE NE NW close NaN per cell
+            lons_out = np.full(n * 6, np.nan)
+            lats_out = np.full(n * 6, np.nan)
+            lons_out[0::6] = clons - lh;  lats_out[0::6] = clats - lth  # SW
+            lons_out[1::6] = clons + lh;  lats_out[1::6] = clats - lth  # SE
+            lons_out[2::6] = clons + lh;  lats_out[2::6] = clats + lth  # NE
+            lons_out[3::6] = clons - lh;  lats_out[3::6] = clats + lth  # NW
+            lons_out[4::6] = clons - lh;  lats_out[4::6] = clats - lth  # close
+
+            fig.add_scattermapbox(
+                lat=lats_out.tolist(),
+                lon=lons_out.tolist(),
+                mode="lines",
+                fill="toself",
+                fillcolor=fill,
+                line=dict(width=0, color=fill),
+                showlegend=False,
+                hoverinfo="skip",
+            )
 
         seen: set = set()
         for contour in contours:
