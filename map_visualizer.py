@@ -424,9 +424,10 @@ class MapVisualizer:
 
         mask = color_key > 0
 
-        # Cell half-extents from the regular linspace grid
-        lh  = (flat_lons.max() - flat_lons.min()) / (grid_size - 1) / 2
-        lth = (flat_lats.max() - flat_lats.min()) / (grid_size - 1) / 2
+        # Cell half-extents: expand by 2% so adjacent cells overlap slightly,
+        # closing any hairline gap caused by floating-point polygon precision.
+        lh  = (flat_lons.max() - flat_lons.min()) / (grid_size - 1) / 2 * 1.02
+        lth = (flat_lats.max() - flat_lats.min()) / (grid_size - 1) / 2 * 1.02
 
         fig = go.Figure()
 
@@ -455,7 +456,7 @@ class MapVisualizer:
                 mode="lines",
                 fill="toself",
                 fillcolor=fill,
-                line=dict(width=0, color=fill),
+                line=dict(width=0, color='rgba(0,0,0,0)'),
                 showlegend=False,
                 hoverinfo="skip",
             )

@@ -238,7 +238,7 @@ with tab_fastest:
         else:  # RGB mix
             if cache_key not in st.session_state.rgb_cache:
                 with st.spinner("Computing RGB mode map…"):
-                    analyser = FastestModeAnalyser()
+                    analyser = FastestModeAnalyser(grid_size=250)
                     result = analyser.analyse_rgb(visible_contours)
                     st.session_state.rgb_cache[cache_key] = result
             else:
