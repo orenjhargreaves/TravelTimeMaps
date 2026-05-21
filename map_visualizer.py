@@ -1,4 +1,5 @@
 import base64
+import colorsys
 import numpy as np
 import plotly.graph_objects as go
 from typing import List
@@ -120,7 +121,64 @@ class MapVisualizer:
 
         return images, annotations, shapes
 
-    def create_multi_mode_map(self, contours: List["Contour"]) -> go.Figure:
+    def _rgb_legend_items(self, contours, base_hex: list):
+        """Legend for RGB mix mode: solid colour swatch per mode plus a brightness note."""
+        n_rows = len(contours) + 2  # modes + "brighter = faster" note + pin row
+        box_h = _PAD_Y * 2 + n_rows * _ROW_H
+        box_y0 = _BOX_Y1 - box_h
+
+        images, annotations = [], []
+        swatch_x = _BOX_X0 + _PAD_X
+        label_x  = swatch_x + _SWATCH_W + _GAP
+
+        for i, (contour, hex_c) in enumerate(zip(contours, base_hex)):
+            swatch_top = _BOX_Y1 - _PAD_Y - i * _ROW_H
+            swatch_mid = swatch_top - _SWATCH_H / 2
+            images.append(dict(
+                source=self._gradient_svg(hex_c, hex_c),
+                xref="paper", yref="paper",
+                x=swatch_x, y=swatch_top,
+                sizex=_SWATCH_W, sizey=_SWATCH_H,
+                xanchor="left", yanchor="top", layer="above",
+            ))
+            annotations.append(dict(
+                text=contour.name, x=label_x, y=swatch_mid,
+                xref="paper", yref="paper",
+                xanchor="left", yanchor="middle",
+                showarrow=False, font=dict(size=12, color="#222222"),
+            ))
+
+        note_top = _BOX_Y1 - _PAD_Y - len(contours) * _ROW_H
+        note_mid = note_top - _SWATCH_H / 2
+        annotations.append(dict(
+            text="Brighter = faster",
+            x=swatch_x, y=note_mid,
+            xref="paper", yref="paper",
+            xanchor="left", yanchor="middle",
+            showarrow=False, font=dict(size=10, color="#666666"),
+        ))
+
+        pin_top = _BOX_Y1 - _PAD_Y - (len(contours) + 1) * _ROW_H
+        pin_mid = pin_top - _SWATCH_H / 2
+        annotations.append(dict(
+            text='<b style="color:#E63946;">●</b> Origin',
+            x=swatch_x, y=pin_mid,
+            xref="paper", yref="paper",
+            xanchor="left", yanchor="middle",
+            showarrow=False, font=dict(size=12, color="#222222"),
+        ))
+
+        shapes = [dict(
+            type="rect", xref="paper", yref="paper",
+            x0=_BOX_X0, y0=box_y0, x1=_BOX_X1, y1=_BOX_Y1,
+            fillcolor="rgba(255,255,255,0.88)",
+            line=dict(color="rgba(0,0,0,0.18)", width=1),
+            layer="above",
+        )]
+
+        return images, annotations, shapes
+
+    def create_multi_mode_map(self, contours: List["Contour"], map_style: str = "carto-positron") -> go.Figure:
         """Create a map with multiple transport mode contours."""
         visible = [
             c for c in contours
@@ -212,7 +270,7 @@ class MapVisualizer:
 
         fig.update_layout(
             mapbox=dict(
-                style='carto-positron',
+                style=map_style,
                 center=dict(lat=center[0], lon=center[1]),
                 zoom=11,
             ),
@@ -248,7 +306,7 @@ class MapVisualizer:
             lats += [c[1] for c in coords] + [None]
         return lats, lons
 
-    def create_fastest_mode_map(self, result: dict) -> go.Figure:
+    def create_fastest_mode_map(self, result: dict, map_style: str = "open-street-map") -> go.Figure:
         """
         Render a fastest-mode map using actual isochrone polygon shapes.
 
@@ -299,7 +357,96 @@ class MapVisualizer:
         center = contours[0].center_location
         fig.update_layout(
             mapbox=dict(
-                style="open-street-map",
+                style=map_style,
+                center=dict(lat=center[0], lon=center[1]),
+                zoom=11,
+            ),
+            height=_MAP_H,
+            margin=dict(l=0, r=20, t=10, b=0),
+            showlegend=False,
+            images=images,
+            annotations=annotations,
+            shapes=shapes,
+        )
+        return fig
+
+    def create_rgb_mode_map(self, result: dict, map_style: str = "carto-positron") -> go.Figure:
+        """
+        Render a fastest-mode map using additive RGB colour mixing.
+
+        Each mode is assigned an evenly-spaced hue (red, green, blue for three modes).
+        Each grid cell's colour is the additive mix of all modes' contributions, where
+        each mode's channel intensity = its speed (1 - travel_time / max_time).
+        Bright primary = one mode dominant; white = all equally fast; black = unreachable.
+        """
+        mode_times = result["mode_times"]   # (n_modes, n_points)
+        flat_lats  = result["lats"]
+        flat_lons  = result["lons"]
+        contours   = result["contours"]
+        n_modes    = len(contours)
+
+        # Evenly-spaced hues at full saturation and brightness
+        base_rgb = [
+            tuple(int(x * 255) for x in colorsys.hsv_to_rgb(i / n_modes, 1.0, 1.0))
+            for i in range(n_modes)
+        ]
+        base_hex = [f'#{r:02x}{g:02x}{b:02x}' for r, g, b in base_rgb]
+
+        R = np.zeros(len(flat_lats))
+        G = np.zeros(len(flat_lats))
+        B = np.zeros(len(flat_lats))
+
+        for ci, contour in enumerate(contours):
+            INF   = float(contour.max_time + 1)
+            times = mode_times[ci]
+            speed = np.where(times < INF, 1.0 - times / contour.max_time, 0.0)
+            speed = np.clip(speed, 0.0, 1.0)
+            r_m, g_m, b_m = base_rgb[ci]
+            R += speed * r_m / 255.0
+            G += speed * g_m / 255.0
+            B += speed * b_m / 255.0
+
+        R = np.clip(R, 0, 1)
+        G = np.clip(G, 0, 1)
+        B = np.clip(B, 0, 1)
+
+        mask = (R + G + B) > 0.02
+        idx  = np.where(mask)[0]
+        colors = [
+            f'rgb({int(R[i]*255)},{int(G[i]*255)},{int(B[i]*255)})'
+            for i in idx
+        ]
+
+        fig = go.Figure()
+        fig.add_scattermapbox(
+            lat=flat_lats[mask],
+            lon=flat_lons[mask],
+            mode="markers",
+            marker=dict(color=colors, size=7, opacity=0.8),
+            showlegend=False,
+            hoverinfo="skip",
+        )
+
+        seen: set = set()
+        for contour in contours:
+            if contour.location not in seen:
+                seen.add(contour.location)
+                clat, clon = contour.center_location
+                fig.add_scattermapbox(
+                    lat=[clat], lon=[clon],
+                    mode="markers",
+                    marker=dict(size=14, color="#E63946"),
+                    showlegend=False,
+                    hoverinfo="text",
+                    hovertext=contour.location,
+                )
+
+        images, annotations, shapes = self._rgb_legend_items(contours, base_hex)
+
+        center = contours[0].center_location
+        fig.update_layout(
+            mapbox=dict(
+                style=map_style,
                 center=dict(lat=center[0], lon=center[1]),
                 zoom=11,
             ),

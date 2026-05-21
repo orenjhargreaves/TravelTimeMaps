@@ -20,11 +20,13 @@ if "default_loaded" not in st.session_state:
     st.session_state.default_loaded = False
 if "fastest_cache" not in st.session_state:
     st.session_state.fastest_cache = {}
+if "rgb_cache" not in st.session_state:
+    st.session_state.rgb_cache = {}
 
 # ── Pre-load demo contours on first run ───────────────────────────────────────
 if not st.session_state.default_loaded:
     st.session_state.default_loaded = True
-    for fname in ("demo_approximate_transit.json", "demo_cycling.json"):
+    for fname in ("demo_approximate_transit.json", "demo_cycling.json", "demo_driving.json"):
         path = Path(__file__).parent / fname
         if path.exists():
             data = json.loads(path.read_text())
@@ -39,8 +41,19 @@ if not st.session_state.default_loaded:
     if st.session_state.contours:
         st.rerun()
 
+_MAP_STYLES = {
+    "Clean":    "carto-positron",
+    "Detailed": "open-street-map",
+    "Dark":     "carto-darkmatter",
+}
+
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
+    st.header("Map")
+    map_style_label = st.selectbox("Base map", list(_MAP_STYLES.keys()), key="map_style_label")
+    map_style = _MAP_STYLES[map_style_label]
+
+    st.divider()
     st.header("Contours")
 
     available_modes = {
@@ -163,7 +176,7 @@ with tab_map:
         visualizer = MapVisualizer()
         any_visible = any(getattr(c, "visible", True) for c in st.session_state.contours)
         if st.session_state.contours and any_visible:
-            fig = visualizer.create_multi_mode_map(st.session_state.contours)
+            fig = visualizer.create_multi_mode_map(st.session_state.contours, map_style=map_style)
             st.plotly_chart(fig, use_container_width=True)
         elif st.session_state.contours:
             st.info("All contours are hidden. Use 'Show on map' in the contour tabs to reveal them.")
@@ -182,27 +195,60 @@ with tab_fastest:
     if len(visible_contours) < 2:
         st.info("Add at least two visible contours to compare modes.")
     else:
+        colour_mode = st.radio(
+            "Colour mode",
+            ["Gradient", "RGB mix"],
+            horizontal=True,
+            help=(
+                "Gradient: each mode uses its own colour, shaded light→dark with travel time. "
+                "RGB mix: modes are mapped to R/G/B channels — brightness encodes speed, "
+                "mixed colours show areas where multiple modes perform similarly."
+            ),
+        )
+
         cache_key = tuple(
             (c.mode, c.location, c.max_time, c.interval) for c in visible_contours
         )
 
-        if cache_key not in st.session_state.fastest_cache:
-            with st.spinner("Computing fastest-mode regions…"):
-                analyser = FastestModeAnalyser()
-                result = analyser.analyse_vector(visible_contours)
-                st.session_state.fastest_cache[cache_key] = result
-        else:
-            result = st.session_state.fastest_cache[cache_key]
+        if colour_mode == "Gradient":
+            if cache_key not in st.session_state.fastest_cache:
+                with st.spinner("Computing fastest-mode regions…"):
+                    analyser = FastestModeAnalyser()
+                    result = analyser.analyse_vector(visible_contours)
+                    st.session_state.fastest_cache[cache_key] = result
+            else:
+                result = st.session_state.fastest_cache[cache_key]
 
-        if result is None:
-            st.info("Not enough data to compute. Ensure at least two contours have results.")
-        else:
-            try:
-                visualizer = MapVisualizer()
-                fig = visualizer.create_fastest_mode_map(result)
-                st.plotly_chart(fig, use_container_width=True)
-                st.caption(
-                    "Colour = fastest mode. Darker shade = longer travel time within that mode's zone."
-                )
-            except Exception as e:
-                st.error(f"Render error: {e}")
+            if result is None:
+                st.info("Not enough data to compute. Ensure at least two contours have results.")
+            else:
+                try:
+                    visualizer = MapVisualizer()
+                    fig = visualizer.create_fastest_mode_map(result, map_style=map_style)
+                    st.plotly_chart(fig, use_container_width=True)
+                    st.caption("Colour = fastest mode. Darker shade = longer travel time within that mode's zone.")
+                except Exception as e:
+                    st.error(f"Render error: {e}")
+
+        else:  # RGB mix
+            if cache_key not in st.session_state.rgb_cache:
+                with st.spinner("Computing RGB mode map…"):
+                    analyser = FastestModeAnalyser()
+                    result = analyser.analyse_rgb(visible_contours)
+                    st.session_state.rgb_cache[cache_key] = result
+            else:
+                result = st.session_state.rgb_cache[cache_key]
+
+            if result is None:
+                st.info("Not enough data to compute. Ensure at least two contours have results.")
+            else:
+                try:
+                    visualizer = MapVisualizer()
+                    fig = visualizer.create_rgb_mode_map(result, map_style=map_style)
+                    st.plotly_chart(fig, use_container_width=True)
+                    st.caption(
+                        "Each mode is assigned a primary colour (red, green, blue…). "
+                        "Brightness = speed. Mixed colours indicate areas where multiple modes perform similarly."
+                    )
+                except Exception as e:
+                    st.error(f"Render error: {e}")

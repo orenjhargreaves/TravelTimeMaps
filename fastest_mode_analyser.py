@@ -88,6 +88,35 @@ class FastestModeAnalyser:
 
     # ── Main analysis ────────────────────────────────────────────────────────
 
+    def analyse_rgb(self, contours) -> Optional[dict]:
+        """
+        Returns per-grid-cell travel times for all visible modes.
+        Used for additive RGB colour mixing in the map view.
+
+        Keys: lats, lons, mode_times (n_modes × n_points ndarray), contours, grid_size.
+        """
+        visible = [
+            c for c in contours
+            if getattr(c, "visible", True)
+            and c.features
+            and c.features.get("features")
+        ]
+        if len(visible) < 2:
+            return None
+
+        flat_lons, flat_lats = self._make_grid(visible)
+        mode_times = np.stack([
+            self._rasterise_contour(c, flat_lons, flat_lats) for c in visible
+        ])
+
+        return {
+            "lats":       flat_lats,
+            "lons":       flat_lons,
+            "mode_times": mode_times,
+            "contours":   visible,
+            "grid_size":  self.grid_size,
+        }
+
     def analyse(self, contours) -> Optional[dict]:
         """
         Returns a dict ready for rendering, or None if fewer than 2 visible
