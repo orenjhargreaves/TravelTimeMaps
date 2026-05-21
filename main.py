@@ -36,28 +36,6 @@ if "contour_raster_cache" not in st.session_state:
 if "imported_file_ids" not in st.session_state:
     st.session_state.imported_file_ids = set()
 
-# ── Pre-load demo contours on first run ───────────────────────────────────────
-if not st.session_state.default_loaded:
-    st.session_state.default_loaded = True
-    # Approximate Transit hidden by default; Transit (exact timetables) is the recommended mode
-    hidden_by_default = {"demo_approximate_transit.json"}
-    for fname in ("demo_transit.json", "demo_cycling.json", "demo_driving.json", "demo_approximate_transit.json"):
-        path = Path(__file__).parent / fname
-        if path.exists():
-            data = json.loads(path.read_text())
-            c = Contour(
-                mode=data["mode"],
-                location=data["location"],
-                max_time=data["max_time"],
-                interval=data["interval"],
-            )
-            c.set_results(data["features"], tuple(data["center_location"]))
-            if fname in hidden_by_default:
-                c.visible = False
-            st.session_state.contours.append(c)
-    if st.session_state.contours:
-        st.rerun()
-
 _MAP_STYLES = {
     "Clean":    "carto-positron",
     "Detailed": "open-street-map",
@@ -352,7 +330,27 @@ with tab_map:
         elif st.session_state.contours:
             st.info("All contours are hidden. Toggle visibility in the Layers panel.")
         else:
-            st.info("Create a contour to begin.")
+            st.markdown("""
+### Getting started
+
+This app draws **travel time contour maps** — showing how far you can travel from any address within a given time, by different modes of transport.
+
+**To create your first contour:**
+
+1. In the sidebar, enter an address or postcode under **New contour**.
+2. Set the **maximum travel time** and **interval** between rings.
+3. Tick at least one **mode** (Transit is the most accurate for public transport).
+4. Click **Create**. The map will appear once the data is fetched.
+
+**Tips:**
+
+- Add multiple modes (e.g. Transit + Cycling) to compare them. The **Fastest Mode** tab shows which is quickest for each area of the map.
+- Use the **Time overhead** slider in each layer's settings to account for fixed costs like walking to a car or carrying a bike downstairs.
+- **Export layers** saves your contours as a JSON file so you can reload them next time without re-fetching.
+- Switch between **Filled** and **Outlines** in the sidebar to change how the contours are drawn.
+- Hover over any ring boundary to see the exact travel time at that point.
+""")
+
     except Exception as e:
         st.error(f"An error occurred: {e}")
 
