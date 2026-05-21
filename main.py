@@ -26,7 +26,9 @@ if "rgb_cache" not in st.session_state:
 # ── Pre-load demo contours on first run ───────────────────────────────────────
 if not st.session_state.default_loaded:
     st.session_state.default_loaded = True
-    for fname in ("demo_approximate_transit.json", "demo_cycling.json", "demo_driving.json"):
+    # hidden_by_default: Transit loads hidden so Approx Transit is the active comparison target
+    hidden_by_default = {"demo_transit.json"}
+    for fname in ("demo_approximate_transit.json", "demo_cycling.json", "demo_driving.json", "demo_transit.json"):
         path = Path(__file__).parent / fname
         if path.exists():
             data = json.loads(path.read_text())
@@ -37,6 +39,8 @@ if not st.session_state.default_loaded:
                 interval=data["interval"],
             )
             c.set_results(data["features"], tuple(data["center_location"]))
+            if fname in hidden_by_default:
+                c.visible = False
             st.session_state.contours.append(c)
     if st.session_state.contours:
         st.rerun()
