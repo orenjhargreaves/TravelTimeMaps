@@ -1,4 +1,5 @@
 import base64
+import numpy as np
 import plotly.graph_objects as go
 from typing import List
 
@@ -226,4 +227,104 @@ class MapVisualizer:
             shapes=shapes,
         )
 
+        return fig
+
+    # ── Fastest-mode map ─────────────────────────────────────────────────────
+
+    def create_fastest_mode_map(self, result: dict) -> go.Figure:
+        """
+        Render a rasterised map where each dot is coloured by the transport
+        mode that reaches that location fastest.
+
+        Opacity encodes confidence: high where one mode is clearly dominant,
+        lower where modes are within ~one interval of each other.
+
+        `result` is the dict returned by FastestModeAnalyser.analyse().
+        """
+        contours = result["contours"]
+        lats     = result["lats"]
+        lons     = result["lons"]
+        win_idx  = result["winning_idx"]
+        win_time = result["winning_time"]
+        margin   = result["margin"]
+        bad      = result["unreachable"]
+
+        # Estimate grid cell size in degrees for dot sizing
+        g = result["grid_size"]
+        lon_range = lons.max() - lons.min()
+        cell_deg  = lon_range / g
+        # At London's latitude, 1° lon ≈ 70 km; zoom 11 ≈ 70 km / (2^11 * 40075/360 / 256) pixels/deg
+        # Empirically: dot_size ≈ cell_deg * 5500 at zoom 11
+        dot_size = max(4, min(16, round(cell_deg * 5500)))
+
+        fig = go.Figure()
+
+        max_interval = max(c.interval for c in contours)
+
+        for ci, contour in enumerate(contours):
+            mask = (win_idx == ci) & ~bad
+            if not mask.any():
+                continue
+
+            # Build per-point RGBA color: mode gradient at winning time, opacity by margin
+            ct = win_time[mask]
+            mg = margin[mask]
+            # Opacity 0.35 (tied) → 0.85 (clearly dominant at 2+ intervals ahead)
+            alpha = np.clip(0.35 + 0.50 * (mg / (2.0 * max_interval)), 0.35, 0.85)
+
+            colors = [
+                self._get_color(contour, float(t), base_opacity=float(a))
+                for t, a in zip(ct, alpha)
+            ]
+
+            fig.add_scattermapbox(
+                lat=lats[mask],
+                lon=lons[mask],
+                mode="markers",
+                marker=dict(size=dot_size, color=colors),
+                name=contour.name,
+                showlegend=True,
+                hoverinfo="text",
+                hovertext=[
+                    f"{contour.name}: {int(t)} min"
+                    + (f" (+{int(m)} vs next)" if m < 99 else "")
+                    for t, m in zip(ct, mg)
+                ],
+            )
+
+        # Origin pin(s)
+        seen = set()
+        for contour in contours:
+            if contour.location not in seen:
+                seen.add(contour.location)
+                clat, clon = contour.center_location
+                fig.add_scattermapbox(
+                    lat=[clat], lon=[clon],
+                    mode="markers",
+                    marker=dict(size=14, color="#E63946"),
+                    name="Origin",
+                    showlegend=True,
+                    hoverinfo="text",
+                    hovertext=contour.location,
+                )
+
+        center = contours[0].center_location
+        fig.update_layout(
+            mapbox=dict(
+                style="carto-positron",
+                center=dict(lat=center[0], lon=center[1]),
+                zoom=11,
+            ),
+            height=_MAP_H,
+            margin=dict(l=0, r=20, t=10, b=0),
+            showlegend=True,
+            legend=dict(
+                yanchor="top", y=0.99,
+                xanchor="left", x=0.01,
+                bgcolor="rgba(255,255,255,0.88)",
+                bordercolor="rgba(0,0,0,0.18)",
+                borderwidth=1,
+                font=dict(size=12),
+            ),
+        )
         return fig

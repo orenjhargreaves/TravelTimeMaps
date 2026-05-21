@@ -2,125 +2,98 @@ from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent / ".env")
 
+import json
 import streamlit as st
-import pandas as pd
-import plotly.graph_objects as go
 from travel_time_calculator import TravelTimeCalculator
 from map_visualizer import MapVisualizer
-
-# Page configuration
-st.set_page_config(page_title="Travel Time Contour Map", layout="wide")
-
+from fastest_mode_analyser import FastestModeAnalyser
 from contour import Contour
 
-# Initialize session state
-if 'contours' not in st.session_state:
-    st.session_state.contours = []
-if 'location' not in st.session_state:
-    st.session_state.location = "SW9 6JX"
-if 'default_loaded' not in st.session_state:
-    st.session_state.default_loaded = False
+st.set_page_config(page_title="Travel Time Contour Map", layout="wide")
 
-# Pre-fill from saved file on first load (no API call needed)
+# ── Session state defaults ────────────────────────────────────────────────────
+if "contours" not in st.session_state:
+    st.session_state.contours = []
+if "location" not in st.session_state:
+    st.session_state.location = "SW9 6JX"
+if "default_loaded" not in st.session_state:
+    st.session_state.default_loaded = False
+if "fastest_cache" not in st.session_state:
+    st.session_state.fastest_cache = {}
+
+# ── Pre-load demo contours on first run ───────────────────────────────────────
 if not st.session_state.default_loaded:
     st.session_state.default_loaded = True
-    _default_path = Path(__file__).parent / "default_contour.json"
-    if _default_path.exists():
-        import json
-        _data = json.loads(_default_path.read_text())
-        _c = Contour(mode=_data["mode"], location=_data["location"],
-                     max_time=_data["max_time"], interval=_data["interval"])
-        _c.set_results(_data["features"], tuple(_data["center_location"]))
-        st.session_state.contours.append(_c)
+    for fname in ("demo_approximate_transit.json", "demo_cycling.json"):
+        path = Path(__file__).parent / fname
+        if path.exists():
+            data = json.loads(path.read_text())
+            c = Contour(
+                mode=data["mode"],
+                location=data["location"],
+                max_time=data["max_time"],
+                interval=data["interval"],
+            )
+            c.set_results(data["features"], tuple(data["center_location"]))
+            st.session_state.contours.append(c)
+    if st.session_state.contours:
         st.rerun()
 
-# Main title
-st.title("Travel Time Contour Map")
-
-# Sidebar controls
+# ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.header("Contours")
 
-    # Transportation mode mapping
     available_modes = {
-        "Cycling": ("bicycling", False),
-        "Driving": ("driving", False),
-        "Walking": ("walking", False),
-        "Transit": ("transit", True),
+        "Cycling":             ("bicycling",           False),
+        "Driving":             ("driving",             False),
+        "Walking":             ("walking",             False),
+        "Transit":             ("transit",             True),
         "Approximate Transit": ("approximated_transit", True),
-        "Bus": ("bus", True)
+        "Bus":                 ("bus",                 True),
     }
 
     mode_descriptions = {
-        "Cycling":            "Travel times by bicycle.",
-        "Driving":            "Travel times by car, using live traffic data.",
-        "Walking":            "Travel times on foot.",
-        "Transit":            "Public transport using real scheduled timetables. Most accurate but slower to compute.",
+        "Cycling":             "Travel times by bicycle.",
+        "Driving":             "Travel times by car, using live traffic data.",
+        "Walking":             "Travel times on foot.",
+        "Transit":             "Public transport using real scheduled timetables. Most accurate but slower to compute.",
         "Approximate Transit": "Public transport using a generalised speed model instead of live timetables. Faster to compute but less precise.",
-        "Bus":                "Distance a bus vehicle can travel (routing, not passenger journey time). Rarely what you want.",
+        "Bus":                 "Distance a bus vehicle can travel (routing, not passenger journey time). Rarely what you want.",
     }
 
-    # Mode counts are no longer needed since we use the contour list directly
-
-    # Store contour information when created
     if "contour_info" not in st.session_state:
         st.session_state.contour_info = []
 
-    # Create tabs for new contour and existing contours
-    tabs = ["New"] + [f"{contour.mode} {i+1}" for i, contour in enumerate(st.session_state.contours)]
+    tabs = ["New"] + [f"{c.mode} {i+1}" for i, c in enumerate(st.session_state.contours)]
     current_tab = st.tabs(tabs)
 
     with current_tab[0]:
-        # New contour controls
-        st.text_input("Starting Location", 
-                     value=st.session_state.location,
-                     key="new_location")
-
-        selected_mode = st.selectbox("Transportation Mode",
-                                   list(available_modes.keys()),
-                                   key="new_mode")
-
+        st.text_input("Starting Location", value=st.session_state.location, key="new_location")
+        selected_mode = st.selectbox("Transportation Mode", list(available_modes.keys()), key="new_mode")
         st.caption(mode_descriptions[selected_mode])
-
-        max_time = st.slider("Maximum Travel Time",
-                           5, 60, 30,
-                           step=5,
-                           key="new_max_time")
-
-        interval = st.slider("Time Interval",
-                          1, 15, 5,
-                          step=1,
-                          key="new_interval")
+        max_time = st.slider("Maximum Travel Time", 5, 60, 30, step=5, key="new_max_time")
+        interval = st.slider("Time Interval", 1, 15, 5, step=1, key="new_interval")
 
         if st.button("Create Contour"):
-            mode_settings = {
-                "max_time": max_time,
-                "interval": interval,
-                "api_mode": available_modes[selected_mode]
-            }
-
             api_mode, use_geoapify = available_modes[selected_mode]
             calculator = TravelTimeCalculator(
                 location=st.session_state.new_location,
                 max_time=max_time,
                 mode=api_mode,
                 interval=interval,
-                use_geoapify=use_geoapify
+                use_geoapify=use_geoapify,
             )
-
             new_contour = Contour(
                 mode=selected_mode,
                 location=st.session_state.new_location,
                 max_time=max_time,
-                interval=interval
+                interval=interval,
             )
-            results = calculator.calculate_travel_times()
-            new_contour.set_results(results, calculator.center_location)
+            new_contour.set_results(calculator.calculate_travel_times(), calculator.center_location)
             st.session_state.contours.append(new_contour)
             st.rerun()
 
-    # Display existing contour information in tabs
-    for idx, tab in enumerate(current_tab[1:], 0):
+    for idx, tab in enumerate(current_tab[1:]):
         with tab:
             contour = st.session_state.contours[idx]
             st.markdown("### Contour Information")
@@ -147,11 +120,11 @@ with st.sidebar:
             band_style = st.selectbox(
                 "Time band labels",
                 options=["None", "Numbers", "Width"],
-                index=["None", "Numbers", "Width"].index(getattr(contour, 'band_style', 'None')),
+                index=["None", "Numbers", "Width"].index(getattr(contour, "band_style", "None")),
                 key=f"band_style_{idx}",
-                help="Numbers: numbered badge at each ring's peak. Width: line thickness increases with travel time."
+                help="Numbers: numbered badge at each ring's peak. Width: line thickness increases with travel time.",
             )
-            if band_style != getattr(contour, 'band_style', 'None'):
+            if band_style != getattr(contour, "band_style", "None"):
                 contour.band_style = band_style
                 st.rerun()
 
@@ -164,26 +137,69 @@ with st.sidebar:
                 st.session_state.contours.pop(idx)
                 st.rerun()
 
-# Create placeholders for the interface elements
-map_col1, map_col2 = st.columns([4, 1])
+# ── Main content ──────────────────────────────────────────────────────────────
+st.title("Travel Time Contour Map")
 
-with map_col1:
-    map_container = st.empty()
+tab_map, tab_fastest = st.tabs(["Contour Map", "Fastest Mode"])
 
+# ── Tab 1: Contour map ────────────────────────────────────────────────────────
+with tab_map:
+    try:
+        visualizer = MapVisualizer()
+        any_visible = any(getattr(c, "visible", True) for c in st.session_state.contours)
+        if st.session_state.contours and any_visible:
+            fig = visualizer.create_multi_mode_map(st.session_state.contours)
+            st.plotly_chart(fig, use_container_width=True)
+        elif st.session_state.contours:
+            st.info("All contours are hidden. Use 'Show on map' in the contour tabs to reveal them.")
+        else:
+            st.info("Create a contour to begin.")
+    except Exception as e:
+        st.error(f"An error occurred: {e}")
 
-# Initialize visualization
-try:
-    visualizer = MapVisualizer()
+# ── Tab 2: Fastest mode ───────────────────────────────────────────────────────
+with tab_fastest:
+    visible_contours = [
+        c for c in st.session_state.contours
+        if getattr(c, "visible", True) and c.features and c.features.get("features")
+    ]
 
-    any_visible = any(getattr(c, 'visible', True) for c in st.session_state.contours)
-    if st.session_state.contours and any_visible:
-        current_fig = visualizer.create_multi_mode_map(
-            st.session_state.contours)
-        map_container.plotly_chart(current_fig, use_container_width=True)
-    elif st.session_state.contours:
-        map_container.info("All contours are hidden. Use 'Show on map' in the contour tabs to reveal them.")
+    if len(visible_contours) < 2:
+        st.info("Add at least two visible contours to compare modes.")
     else:
-        map_container.info("Create a contour to begin")
+        # Cache key: tuple of (mode, location, max_time, interval) per visible contour
+        cache_key = tuple(
+            (c.mode, c.location, c.max_time, c.interval) for c in visible_contours
+        )
 
-except Exception as e:
-    st.error(f"An error occurred: {str(e)}")
+        col_ctrl, col_spacer = st.columns([1, 3])
+        with col_ctrl:
+            grid_size = st.select_slider(
+                "Grid resolution",
+                options=[75, 100, 150, 200],
+                value=100,
+                help="Higher = sharper but slower. 150 takes ~2 s.",
+            )
+        full_cache_key = cache_key + (grid_size,)
+
+        if full_cache_key not in st.session_state.fastest_cache:
+            with st.spinner("Computing fastest-mode grid…"):
+                analyser = FastestModeAnalyser(grid_size=grid_size)
+                result = analyser.analyse(visible_contours)
+                st.session_state.fastest_cache[full_cache_key] = result
+        else:
+            result = st.session_state.fastest_cache[full_cache_key]
+
+        if result is None:
+            st.info("Not enough data to compute. Ensure at least two contours have results.")
+        else:
+            try:
+                visualizer = MapVisualizer()
+                fig = visualizer.create_fastest_mode_map(result)
+                st.plotly_chart(fig, use_container_width=True)
+                st.caption(
+                    "Colour = fastest mode. Opacity = confidence: fully opaque where one mode "
+                    "leads by ≥ 2 intervals; semi-transparent where modes are closely matched."
+                )
+            except Exception as e:
+                st.error(f"Render error: {e}")
